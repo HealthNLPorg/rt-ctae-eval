@@ -1,39 +1,46 @@
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
-from .datatypes import Entity, Relation
+from lseval.datatypes import Entity, Relation
+from .meta import RT_CUI, NaranjoScale
 
 
-class NaranjoScale(Enum):
-    DOUBTFUL = "Doubtful"
-    POSSIBLE = "Possible"
-    PROBABLE = "Probable"
-    CERTAIN = "Certain"
+def cuis_are_radiation_treatment(cuis: set[str]) -> bool:
+    return RT_CUI in cuis and len(cuis) == 1
+
+
+def cuis_are_adverse_event(cuis: set[str]) -> bool:
+    return RT_CUI not in cuis
+
+
+@dataclass
+class RTEntity(Entity):
+    def __post_init__(self):
+        if not cuis_are_radiation_treatment(self.cuis):
+            ValueError(f"{self} is not a proper RT entity")
+
+
+@dataclass
+class AdverseEventEntity(Entity):
+    def __post_init__(self):
+        if not cuis_are_adverse_event(self.cuis):
+            ValueError(f"{self} is not a proper RT entity")
 
 
 @dataclass
 class CausalRelation(Relation):
     def __post_init__(self):
-        if not validate_radiation_treatment(self.arg1):
+        if not isinstance(self.arg1, RTEntity):
             ValueError(
                 f"{self.arg1} is not a radiation treatment - convention is radiation treatment is the anchor"
             )
-        if not validate_adverse_event(self.arg1):
+        if not isinstance(self.arg2, AdverseEventEntity):
             ValueError(
-                f"{self.arg1} is not a adverse event - convention is adverse event is the anchor"
+                f"{self.arg2} is not a adverse event - convention is adverse event is the anchor"
             )
-        if not validate_naranjo_label(self.label):
+        if not CausalRelation.validate_naranjo_label(self.label):
             ValueError(f"Invalid causality label {self.label}")
 
-
-def validate_radiation_treatment(entity: Entity) -> bool:
-    return False
-
-
-def validate_adverse_event(entity: Entity) -> bool:
-    return False
-
-
-def validate_naranjo_label(label: Any) -> bool:
-    return label in NaranjoScale
+    @staticmethod
+    def validate_naranjo_label(label: Any) -> bool:
+        return label in NaranjoScale
