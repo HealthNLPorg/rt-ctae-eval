@@ -7,5 +7,14 @@ requires-python = ">=3.13"
 dependencies = [
              "ruff",
              "ty",
+             "ipython",
              "lseval@git+https://github.com/HealthNLPorg/lseval.git"
 ]
+
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["lseval*"]

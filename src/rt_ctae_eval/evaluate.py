@@ -1,5 +1,6 @@
 import argparse
 import logging
+from lseval.utils import organize_corpus_annotations_by_annotator
 
 parser = argparse.ArgumentParser(description="")
 parser.add_argument(
@@ -7,10 +8,10 @@ parser.add_argument(
     required=True,
     help="Exported Label Studio JSON.",
 )
+
 parser.add_argument(
-    "--per_document",
-    action="store_true",
-    help="Print out scores for each document, rather than overall scores",
+    "--annotator_ids_tsv",
+    help="TSV with rows of the form <annotator name>\t<ID 1>,...,<ID N>",
 )
 parser.add_argument(
     "--overlap",
@@ -30,7 +31,7 @@ logging.basicConfig(
 
 
 def score(corpus_json: str, per_document: bool, overlap: bool) -> None:
-    pass
+    annotator_to_single_annotator_corpus = organize_corpus_annotations_by_annotator()
 
 
 def main() -> None:
