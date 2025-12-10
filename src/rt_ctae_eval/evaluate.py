@@ -60,6 +60,9 @@ def score_corpus_all_annnotators(
     ):
         prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
         reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
+        print(
+            f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
+        )
         score_corpus(
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
