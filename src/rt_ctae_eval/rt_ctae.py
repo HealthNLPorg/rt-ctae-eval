@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+
+from lseval.correctness_matrix import CorrectnessMatrix
 from typing import Any
 
 from lseval.datatypes import Entity, Relation
@@ -44,3 +46,10 @@ class CausalRelation(Relation):
     @staticmethod
     def validate_naranjo_label(label: Any) -> bool:
         return label in NaranjoScale
+
+
+@dataclass
+class AnnotatedFileScores:
+    rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
+    adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
+    causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
