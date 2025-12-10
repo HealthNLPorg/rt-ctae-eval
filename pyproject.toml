@@ -9,6 +9,7 @@ dependencies = [
              "ty",
              "ipython",
              "polars",
+             "more-itertools",
              "lseval@git+https://github.com/HealthNLPorg/lseval.git"
 ]
 
