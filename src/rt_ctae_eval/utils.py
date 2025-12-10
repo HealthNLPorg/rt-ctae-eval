@@ -90,13 +90,13 @@ def get_causal_relation_correctness_matrix(
     directed: bool = False,
 ) -> CorrectnessMatrix[CausalRelation]:
     def is_valid_relation(relation: Relation) -> bool:
-        first_adverse_second_rt = is_rt_entity(
+        first_adverse_second_rt = is_adverse_event_entity(
+            relation.arg1
+        ) and is_rt_entity(relation.arg2)
+        first_rt_second_adverse = is_rt_entity(
             relation.arg1
         ) and is_adverse_event_entity(relation.arg2)
-        second_adverse_second_rt = is_rt_entity(
-            relation.arg2
-        ) and is_adverse_event_entity(relation.arg1)
-        return first_adverse_second_rt or second_adverse_second_rt
+        return first_adverse_second_rt or first_rt_second_adverse
 
     def get_valid_relations(annotated_file: AnnotatedFile) -> list[Relation]:
         invalid_relation_iter, valid_relation_iter = partition(
@@ -107,14 +107,7 @@ def get_causal_relation_correctness_matrix(
             logger.info(
                 f"File with ID {annotated_file.file_id} has {len(invalid_relations)} invalid relations."
             )
-        valid_relations = list(valid_relation_iter)
-        return valid_relations
-        # unique_valid_relations = set(valid_relations)
-        # if len(valid_relations) > len(unique_valid_relations):
-        #     logger.info(
-        #         f"File with ID {annotated_file.file_id} has {len(valid_relations) - len(unique_valid_relations)}"
-        #     )
-        # return unique_valid_relations
+        return list(valid_relation_iter)
 
     valid_prediction_relations = [
         CausalRelation(
