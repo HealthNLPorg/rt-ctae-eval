@@ -26,11 +26,11 @@ logging.basicConfig(
 
 
 def is_rt_entity(entity: Entity) -> bool:
-    return cuis_are_radiation_treatment(entity.cuis)
+    return cuis_are_radiation_treatment(set(entity.cuis))
 
 
 def is_adverse_event_entity(entity: Entity) -> bool:
-    return cuis_are_adverse_event(entity.cuis)
+    return cuis_are_adverse_event(set(entity.cuis))
 
 
 def get_rt_entity_correctness_matrix(
@@ -38,13 +38,29 @@ def get_rt_entity_correctness_matrix(
     reference_file: AnnotatedFile,
     overlap: bool,
 ) -> CorrectnessMatrix[RTEntity]:
+    if prediction_file.file_id != reference_file.file_id:
+        ValueError(
+            f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
+        )
     prediction_rt_entities = {
-        RTEntity(span=entity.span, dtr=entity.dtr, cuis=entity.cuis, text=entity.text)
+        RTEntity(
+            file_id=prediction_file.file_id,
+            span=entity.span,
+            dtr=entity.dtr,
+            cuis=entity.cuis,
+            text=entity.text,
+        )
         for entity in prediction_file.entities
         if is_rt_entity(entity)
     }
     reference_rt_entities = {
-        RTEntity(span=entity.span, dtr=entity.dtr, cuis=entity.cuis, text=entity.text)
+        RTEntity(
+            file_id=reference_file.file_id,
+            span=entity.span,
+            dtr=entity.dtr,
+            cuis=entity.cuis,
+            text=entity.text,
+        )
         for entity in reference_file.entities
         if is_rt_entity(entity)
     }
@@ -60,16 +76,28 @@ def get_adverse_event_entity_correctness_matrix(
     reference_file: AnnotatedFile,
     overlap: bool,
 ) -> CorrectnessMatrix[AdverseEventEntity]:
+    if prediction_file.file_id != reference_file.file_id:
+        ValueError(
+            f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
+        )
     prediction_adverse_event_entities = {
         AdverseEventEntity(
-            span=entity.span, dtr=entity.dtr, cuis=entity.cuis, text=entity.text
+            file_id=prediction_file.file_id,
+            span=entity.span,
+            dtr=entity.dtr,
+            cuis=entity.cuis,
+            text=entity.text,
         )
         for entity in prediction_file.entities
         if is_adverse_event_entity(entity)
     }
     reference_adverse_event_entities = {
         AdverseEventEntity(
-            span=entity.span, dtr=entity.dtr, cuis=entity.cuis, text=entity.text
+            file_id=reference_file.file_id,
+            span=entity.span,
+            dtr=entity.dtr,
+            cuis=entity.cuis,
+            text=entity.text,
         )
         for entity in reference_file.entities
         if is_adverse_event_entity(entity)
@@ -109,8 +137,13 @@ def get_causal_relation_correctness_matrix(
             )
         return list(valid_relation_iter)
 
+    if prediction_file.file_id != reference_file.file_id:
+        ValueError(
+            f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
+        )
     valid_prediction_relations = [
         CausalRelation(
+            file_id=reference_file.file_id,
             arg1=relation.arg1,
             arg2=relation.arg2,
             label=relation.label,
@@ -120,6 +153,7 @@ def get_causal_relation_correctness_matrix(
     ]
     valid_reference_relations = [
         CausalRelation(
+            file_id=prediction_file.file_id,
             arg1=relation.arg1,
             arg2=relation.arg2,
             label=relation.label,
@@ -186,7 +220,7 @@ def score_corpus(
     }
     for file_id, prediction_file in file_id_to_prediction_files.items():
         reference_file = file_id_to_reference_files.get(
-            file_id, AnnotatedFile(file_id=file_id, entities=set(), relations=set())
+            file_id, AnnotatedFile(file_id=file_id, entities=frozenset(), relations=frozenset())
         )
         annotated_file_scores = score_file(
             prediction_file=prediction_file,
@@ -227,25 +261,6 @@ def score_corpus(
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
-    rt_prec = rt_total_tp / (rt_total_tp + rt_total_fp)
-    rt_recall = rt_total_tp / (rt_total_tp + rt_total_fn)
-    rt_f1 = 2 * rt_prec * rt_recall
-    adverse_prec = adverse_total_tp / (adverse_total_tp + adverse_total_fp)
-    adverse_recall = adverse_total_tp / (adverse_total_tp + adverse_total_fn)
-    adverse_f1 = 2 * adverse_prec * adverse_recall
-    relation_prec = relation_total_tp / (relation_total_tp + relation_total_fp)
-    relation_recall = relation_total_tp / (relation_total_tp + relation_total_fn)
-    relation_f1 = 2 * relation_prec * relation_recall
-    print("Corpus level scores:")
-    print(f"Adverse Event Entities Precision:     \t{adverse_prec}")
-    print(f"Adverse Event Entities Recall:        \t{adverse_recall}")
-    print(f"Adverse Event Entities F1:            \t{adverse_f1}")
-    print(f"RT Entities Precision:     \t{rt_prec}")
-    print(f"RT Entities Recall:        \t{rt_recall}")
-    print(f"RT Entities F1:            \t{rt_f1}")
-    print(f"Causal Relations Precision:\t{relation_prec}")
-    print(f"Causal Relations Recall:   \t{relation_recall}")
-    print(f"Causal Relations F1:       \t{relation_f1}")
 
 
 def print_metrics(annotated_files_cores: AnnotatedFileScores) -> None:

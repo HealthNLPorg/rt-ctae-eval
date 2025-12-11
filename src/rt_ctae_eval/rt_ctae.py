@@ -15,21 +15,21 @@ def cuis_are_adverse_event(cuis: set[str]) -> bool:
     return RT_CUI not in cuis
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class RTEntity(Entity):
     def __post_init__(self):
-        if not cuis_are_radiation_treatment(self.cuis):
+        if not cuis_are_radiation_treatment(set(self.cuis)):
             ValueError(f"{self} is not a proper RT entity")
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class AdverseEventEntity(Entity):
     def __post_init__(self):
-        if not cuis_are_adverse_event(self.cuis):
+        if not cuis_are_adverse_event(set(self.cuis)):
             ValueError(f"{self} is not a proper RT entity")
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class CausalRelation(Relation):
     def __post_init__(self):
         if not isinstance(self.arg1, RTEntity):
