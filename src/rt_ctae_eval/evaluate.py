@@ -20,12 +20,17 @@ parser.add_argument(
 )
 parser.add_argument(
     "--overlap",
-    dest="spans_type",
     action="store_true",
     help="Count predicted annotation spans as correct if they overlap by one character or more "
     + "with a reference annotation span. Not intended as a real evaluation method (since what "
     + "to do with multiple matches is not well defined) but useful for debugging purposes.",
 )
+parser.add_argument(
+    "--per_document",
+    action="store_true",
+    help="Print document level stores",
+)
+
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
@@ -36,7 +41,7 @@ logging.basicConfig(
 
 
 def get_id_to_annotator_mappping(annotator_ids_tsv: str) -> Mapping[int, str]:
-    annotator_with_ids_df = pl.read_csv(annotator_ids_tsv)
+    annotator_with_ids_df = pl.read_csv(annotator_ids_tsv, separator="\t")
     id_to_unique_annotator = {}
     for annnotator_name, clustered_ids in zip(
         annotator_with_ids_df["annotator_name"], annotator_with_ids_df["annotator_ids"]
