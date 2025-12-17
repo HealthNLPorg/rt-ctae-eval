@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+
+from enum import Enum
 from lseval.correctness_matrix import CorrectnessMatrix
 from typing import Any
 
@@ -13,6 +15,16 @@ def cuis_are_radiation_treatment(cuis: set[str]) -> bool:
 
 def cuis_are_adverse_event(cuis: set[str]) -> bool:
     return RT_CUI not in cuis
+
+
+class EventType(Enum):
+    RTEntity = "Radiotherapy Treatment"
+    AdverseEventEntity = "Adverse Event"
+    NA = "N/A"
+
+    @classmethod
+    def _missing_(cls, value):
+        return EventType.NA
 
 
 @dataclass(eq=True, frozen=True)

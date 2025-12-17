@@ -18,6 +18,13 @@ parser.add_argument(
     "--annotator_ids_tsv",
     help="TSV with rows of the form <annotator name><tab><ID 1>,...,<ID N>",
 )
+
+parser.add_argument(
+    "--annotator_ids_to_ignore",
+    help="Specious fix to avoid wrangling JSON - probably should remove for 'primetime'",
+    nargs="+",
+    type=int,
+)
 parser.add_argument(
     "--overlap",
     action="store_true",
@@ -40,32 +47,43 @@ logging.basicConfig(
 )
 
 
-def get_id_to_annotator_mappping(annotator_ids_tsv: str) -> Mapping[int, str]:
+def get_id_to_annotator_mappping(
+    annotator_ids_tsv: str, annotator_ids_to_ignore: list[int]
+) -> Mapping[int, str]:
     annotator_with_ids_df = pl.read_csv(annotator_ids_tsv, separator="\t")
     id_to_unique_annotator = {}
     for annnotator_name, clustered_ids in zip(
         annotator_with_ids_df["annotator_name"], annotator_with_ids_df["annotator_ids"]
     ):
         for annotator_id in map(int, clustered_ids.split(",")):
-            id_to_unique_annotator[annotator_id] = annnotator_name
+            if annotator_id not in annotator_ids_to_ignore:
+                id_to_unique_annotator[annotator_id] = annnotator_name
     return id_to_unique_annotator
 
 
 def score_corpus_all_annnotators(
-    corpus_json: str, annotator_ids_tsv: str, overlap: bool, per_document: bool
+    corpus_json: str,
+    annotator_ids_tsv: str,
+    overlap: bool,
+    per_document: bool,
+    annotator_ids_to_ignore: list[int],
 ) -> None:
     with open(corpus_json, mode="rt") as f:
         raw_json_corpus = json.load(f)
-    id_to_unique_annotator = get_id_to_annotator_mappping(annotator_ids_tsv)
+    id_to_unique_annotator = get_id_to_annotator_mappping(
+        annotator_ids_tsv, annotator_ids_to_ignore
+    )
     annotator_to_single_annotator_corpus = organize_corpus_annotations_by_annotator(
-        raw_json_corpus=raw_json_corpus, id_to_unique_annotator=id_to_unique_annotator
+        raw_json_corpus=raw_json_corpus,
+        id_to_unique_annotator=id_to_unique_annotator,
+        annotator_ids_to_ignore=annotator_ids_to_ignore,
     )
     for prediction_annotator, reference_annotator in permutations(
         annotator_to_single_annotator_corpus.keys(), r=2
     ):
         prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
         reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
-        print(
+        logger.info(
             f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
         )
         score_corpus(
@@ -83,6 +101,7 @@ def main() -> None:
         annotator_ids_tsv=args.annotator_ids_tsv,
         overlap=args.overlap,
         per_document=args.per_document,
+        annotator_ids_to_ignore=args.annotator_ids_to_ignore,
     )
 
 
