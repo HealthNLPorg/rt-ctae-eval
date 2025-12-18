@@ -39,58 +39,6 @@ def is_valid_relation(relation: Relation) -> bool:
     return first_adverse_second_rt or first_rt_second_adverse
 
 
-def get_valid_relations(annotated_file: AnnotatedFile) -> list[Relation]:
-    invalid_relation_iter, valid_relation_iter = partition(
-        is_valid_relation, annotated_file.relations
-    )
-    invalid_relations = list(invalid_relation_iter)
-    if len(invalid_relations) > 0:
-        logger.info(
-            f"File with ID {annotated_file.file_id} has {len(invalid_relations)} invalid relations."
-        )
-        logger.error(f"{invalid_relations}")
-    return list(valid_relation_iter)
-
-
-def get_causal_relation_correctness_matrix(
-    prediction_file: AnnotatedFile,
-    reference_file: AnnotatedFile,
-    overlap: bool,
-    directed: bool = False,
-) -> CorrectnessMatrix[CausalRelation]:
-    if prediction_file.file_id != reference_file.file_id:
-        ValueError(
-            f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
-        )
-    valid_prediction_relations = [
-        CausalRelation(
-            file_id=reference_file.file_id,
-            arg1=relation.arg1,
-            arg2=relation.arg2,
-            label=relation.label,
-            directed=directed,
-            source_annotations=relation.source_annotations,
-        )
-        for relation in get_valid_relations(prediction_file)
-    ]
-    valid_reference_relations = [
-        CausalRelation(
-            file_id=prediction_file.file_id,
-            arg1=relation.arg1,
-            arg2=relation.arg2,
-            label=relation.label,
-            directed=directed,
-            source_annotations=relation.source_annotations,
-        )
-        for relation in get_valid_relations(reference_file)
-    ]
-    return build_relation_correctness_matrix(
-        predicted_relations=valid_prediction_relations,
-        reference_relations=valid_reference_relations,
-        overlap=overlap,
-    )
-
-
 def to_rt_entity(entity: Entity, file_id: int) -> RTEntity:
     return RTEntity(
         file_id=file_id,
