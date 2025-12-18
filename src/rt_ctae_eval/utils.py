@@ -1,6 +1,7 @@
 from operator import attrgetter
 from lseval.datatypes import Entity, Relation, SingleAnnotatorCorpus, AnnotatedFile
 from more_itertools import partition
+from functools import partial
 from lseval.correctness_matrix import CorrectnessMatrix
 from lseval.score import (
     build_entity_correctness_matrix,
@@ -8,7 +9,8 @@ from lseval.score import (
 )
 import logging
 from typing import Mapping
-from itertools import groupby
+from itertools import groupby, chain
+from collections.abc import Iterable
 from .rt_ctae import (
     AnnotatedFileScores,
     EventType,
@@ -27,33 +29,35 @@ logging.basicConfig(
 )
 
 
+def is_valid_relation(relation: Relation) -> bool:
+    first_adverse_second_rt = isinstance(
+        relation.arg1, AdverseEventEntity
+    ) and isinstance(relation.arg2, RTEntity)
+    first_rt_second_adverse = isinstance(relation.arg1, RTEntity) and isinstance(
+        relation.arg2, AdverseEventEntity
+    )
+    return first_adverse_second_rt or first_rt_second_adverse
+
+
+def get_valid_relations(annotated_file: AnnotatedFile) -> list[Relation]:
+    invalid_relation_iter, valid_relation_iter = partition(
+        is_valid_relation, annotated_file.relations
+    )
+    invalid_relations = list(invalid_relation_iter)
+    if len(invalid_relations) > 0:
+        logger.info(
+            f"File with ID {annotated_file.file_id} has {len(invalid_relations)} invalid relations."
+        )
+        logger.error(f"{invalid_relations}")
+    return list(valid_relation_iter)
+
+
 def get_causal_relation_correctness_matrix(
     prediction_file: AnnotatedFile,
     reference_file: AnnotatedFile,
     overlap: bool,
     directed: bool = False,
 ) -> CorrectnessMatrix[CausalRelation]:
-    def is_valid_relation(relation: Relation) -> bool:
-        first_adverse_second_rt = isinstance(
-            relation.arg1, AdverseEventEntity
-        ) and isinstance(relation.arg2, RTEntity)
-        first_rt_second_adverse = isinstance(relation.arg1, RTEntity) and isinstance(
-            relation.arg2, AdverseEventEntity
-        )
-        return first_adverse_second_rt or first_rt_second_adverse
-
-    def get_valid_relations(annotated_file: AnnotatedFile) -> list[Relation]:
-        invalid_relation_iter, valid_relation_iter = partition(
-            is_valid_relation, annotated_file.relations
-        )
-        invalid_relations = list(invalid_relation_iter)
-        if len(invalid_relations) > 0:
-            logger.info(
-                f"File with ID {annotated_file.file_id} has {len(invalid_relations)} invalid relations."
-            )
-            logger.error(f"{invalid_relations}")
-        return list(valid_relation_iter)
-
     if prediction_file.file_id != reference_file.file_id:
         ValueError(
             f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
@@ -90,6 +94,7 @@ def get_causal_relation_correctness_matrix(
 def to_rt_entity(entity: Entity, file_id: int) -> RTEntity:
     return RTEntity(
         file_id=file_id,
+        label_studio_id=entity.label_studio_id,
         span=entity.span,
         text=entity.text,
         dtr=entity.dtr,
@@ -102,6 +107,7 @@ def to_rt_entity(entity: Entity, file_id: int) -> RTEntity:
 def to_adverse_event_entity(entity: Entity, file_id: int) -> AdverseEventEntity:
     return AdverseEventEntity(
         file_id=file_id,
+        label_studio_id=entity.label_studio_id,
         span=entity.span,
         text=entity.text,
         dtr=entity.dtr,
@@ -133,6 +139,44 @@ def parse_entities(annotated_file: AnnotatedFile) -> Mapping[EventType, set[Enti
     return event_type_to_instances
 
 
+def recoordinate_causal_relation(
+    label_studio_id_to_entity: Mapping[str, Entity],
+    relation: Relation,
+) -> CausalRelation | None:
+    updated_arg1 = label_studio_id_to_entity.get(relation.arg1.label_studio_id)
+    updated_arg2 = label_studio_id_to_entity.get(relation.arg2.label_studio_id)
+    if updated_arg1 is None or updated_arg2 is None:
+        ValueError(
+            f"Missing ID mapping information in {label_studio_id_to_entity.keys()} for one of {relation.arg1.label_studio_id} {relation.arg2.label_studio_id}"
+        )
+        return None
+    updated_relation = CausalRelation(
+        file_id=relation.file_id,
+        arg1=updated_arg1,
+        arg2=updated_arg2,
+        label=relation.label,
+        source_annotations=relation.source_annotations,
+    )
+    assert is_valid_relation(updated_relation)
+    return updated_relation
+
+
+def recoordinate_causal_relations(
+    annotated_file: AnnotatedFile, updated_entities: Iterable[Entity]
+) -> list[Relation]:
+    id_to_entity = {}
+    for entity in updated_entities:
+        label_studio_id = getattr(entity, "label_studio_id")
+        if label_studio_id is None:
+            ValueError(f"Missing Label Studio ID for entity {entity}")
+        stored = id_to_entity.get(label_studio_id)
+        if stored is not None:
+            ValueError(f"Duplicate Label Studio IDs for entities {entity} and {stored}")
+        id_to_entity[str(label_studio_id)] = entity
+    local_recoordinate = partial(recoordinate_causal_relation, id_to_entity)
+    return list(filter(None, map(local_recoordinate, annotated_file.relations)))
+
+
 def score_file(
     prediction_file: AnnotatedFile,
     reference_file: AnnotatedFile,
@@ -147,22 +191,32 @@ def score_file(
     event_type_to_reference_entities = parse_entities(reference_file)
     return AnnotatedFileScores(
         rt_entity_correctness_matrix=build_entity_correctness_matrix(
-            predicted_entities=event_type_to_prediction_entities[EventType.RTEntity],
-            reference_entities=event_type_to_reference_entities[EventType.RTEntity],
+            predicted_entities=event_type_to_prediction_entities.get(
+                EventType.RTEntity, set()
+            ),
+            reference_entities=event_type_to_reference_entities.get(
+                EventType.RTEntity, set()
+            ),
             overlap=overlap,
         ),
         adverse_event_entity_correctness_matrix=build_entity_correctness_matrix(
-            predicted_entities=event_type_to_prediction_entities[
-                EventType.AdverseEventEntity
-            ],
-            reference_entities=event_type_to_reference_entities[
-                EventType.AdverseEventEntity
-            ],
+            predicted_entities=event_type_to_prediction_entities.get(
+                EventType.AdverseEventEntity, set()
+            ),
+            reference_entities=event_type_to_reference_entities.get(
+                EventType.AdverseEventEntity, set()
+            ),
             overlap=overlap,
         ),
-        causal_relation_correctness_matrix=get_causal_relation_correctness_matrix(
-            prediction_file=prediction_file,
-            reference_file=reference_file,
+        causal_relation_correctness_matrix=build_relation_correctness_matrix(
+            predicted_relations=recoordinate_causal_relations(
+                prediction_file,
+                chain.from_iterable(event_type_to_prediction_entities.values()),
+            ),
+            reference_relations=recoordinate_causal_relations(
+                reference_file,
+                chain.from_iterable(event_type_to_reference_entities.values()),
+            ),
             overlap=overlap,
         ),
     )
