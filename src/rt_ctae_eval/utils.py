@@ -225,13 +225,13 @@ def print_metrics(annotated_files_cores: AnnotatedFileScores) -> None:
         f"RT Entities F1:            \t{annotated_files_cores.rt_entity_correctness_matrix.get_f1()}"
     )
     print(
-        f"RT Entities Precision:     \t{annotated_files_cores.rt_entity_correctness_matrix.get_precision()}"
+        f"Adverse Event Entities Precision:     \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_precision()}"
     )
     print(
-        f"RT Entities Recall:        \t{annotated_files_cores.rt_entity_correctness_matrix.get_recall()}"
+        f"Adverse Event Entities Recall:        \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_recall()}"
     )
     print(
-        f"RT Entities F1:            \t{annotated_files_cores.rt_entity_correctness_matrix.get_f1()}"
+        f"Adverse Event Entities F1:            \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_f1()}"
     )
     print(
         f"Causal Relations Precision:\t{annotated_files_cores.causal_relation_correctness_matrix.get_precision()}"
