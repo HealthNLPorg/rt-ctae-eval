@@ -1,6 +1,5 @@
 from operator import attrgetter
 from lseval.datatypes import Entity, Relation, SingleAnnotatorCorpus, AnnotatedFile
-from more_itertools import partition
 from functools import partial
 from lseval.correctness_matrix import CorrectnessMatrix
 from lseval.score import (
@@ -13,6 +12,7 @@ from itertools import groupby, chain
 from collections.abc import Iterable
 from .rt_ctae import (
     AnnotatedFileScores,
+    AnnotatedCorpusScores,
     EventType,
     RTEntity,
     AdverseEventEntity,
@@ -126,6 +126,7 @@ def recoordinate_causal_relations(
 
 
 def score_file(
+    file_id: int,
     prediction_file: AnnotatedFile,
     reference_file: AnnotatedFile,
     overlap: bool,
@@ -138,6 +139,7 @@ def score_file(
     event_type_to_prediction_entities = parse_entities(prediction_file)
     event_type_to_reference_entities = parse_entities(reference_file)
     return AnnotatedFileScores(
+        file_id=file_id,
         rt_entity_correctness_matrix=build_entity_correctness_matrix(
             predicted_entities=event_type_to_prediction_entities.get(
                 EventType.RTEntity, set()
@@ -170,12 +172,64 @@ def score_file(
     )
 
 
+def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
+    initial_total = len(needs_updates) + len(has_updates)
+    needs_updates.update(has_updates)
+    new_total = len(needs_updates)
+    difference = initial_total - new_total
+    if difference > 0:
+        ValueError(f"Set has {difference} non-unique entries.")
+        return set()
+    return needs_updates
+
+
+def update_correctness_matrix(
+    needs_updates: CorrectnessMatrix, has_updates: CorrectnessMatrix
+) -> CorrectnessMatrix:
+    needs_updates.true_negatives = warned_set_update(
+        needs_updates.true_negatives, has_updates.true_negatives
+    )
+    needs_updates.true_positives = warned_set_update(
+        needs_updates.true_positives, has_updates.true_positives
+    )
+    needs_updates.false_negatives = warned_set_update(
+        needs_updates.false_negatives, has_updates.false_negatives
+    )
+    needs_updates.false_positives = warned_set_update(
+        needs_updates.false_positives, has_updates.false_positives
+    )
+    return needs_updates
+
+
+def update_corpus_scores(
+    corpus_scores: AnnotatedCorpusScores, file_scores: AnnotatedFileScores
+) -> AnnotatedCorpusScores:
+    corpus_scores.rt_entity_correctness_matrix = update_correctness_matrix(
+        corpus_scores.rt_entity_correctness_matrix,
+        file_scores.rt_entity_correctness_matrix,
+    )
+    corpus_scores.adverse_event_entity_correctness_matrix = update_correctness_matrix(
+        corpus_scores.adverse_event_entity_correctness_matrix,
+        file_scores.adverse_event_entity_correctness_matrix,
+    )
+    corpus_scores.causal_relation_correctness_matrix = update_correctness_matrix(
+        corpus_scores.causal_relation_correctness_matrix,
+        file_scores.causal_relation_correctness_matrix,
+    )
+    return corpus_scores
+
+
 def score_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
     overlap: bool,
     per_document: bool,
 ) -> None:
+    annotated_corpus_scores = AnnotatedCorpusScores(
+        rt_entity_correctness_matrix=CorrectnessMatrix(),
+        adverse_event_entity_correctness_matrix=CorrectnessMatrix(),
+        causal_relation_correctness_matrix=CorrectnessMatrix(),
+    )
     file_id_to_prediction_files = {
         annotated_file.file_id: annotated_file
         for annotated_file in prediction_corpus.annotated_files
@@ -204,41 +258,49 @@ def score_corpus(
             )
             continue
         annotated_file_scores = score_file(
+            file_id=file_id,
             prediction_file=prediction_file,
             reference_file=reference_file,
             overlap=overlap,
         )
-
+        annotated_corpus_scores = update_corpus_scores(
+            annotated_corpus_scores, annotated_file_scores
+        )
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
 
+    print("Corpus scores:")
+    print_metrics(annotated_corpus_scores)
 
-def print_metrics(annotated_files_cores: AnnotatedFileScores) -> None:
+
+def print_metrics(
+    annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
+) -> None:
     print(
-        f"RT Entities Precision:     \t{annotated_files_cores.rt_entity_correctness_matrix.get_precision()}"
+        f"RT Entities Precision:     \t{annotated_collection_scores.rt_entity_correctness_matrix.get_precision()}"
     )
     print(
-        f"RT Entities Recall:        \t{annotated_files_cores.rt_entity_correctness_matrix.get_recall()}"
+        f"RT Entities Recall:        \t{annotated_collection_scores.rt_entity_correctness_matrix.get_recall()}"
     )
     print(
-        f"RT Entities F1:            \t{annotated_files_cores.rt_entity_correctness_matrix.get_f1()}"
+        f"RT Entities F1:            \t{annotated_collection_scores.rt_entity_correctness_matrix.get_f1()}"
     )
     print(
-        f"Adverse Event Entities Precision:     \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_precision()}"
+        f"Adverse Event Entities Precision:     \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision()}"
     )
     print(
-        f"Adverse Event Entities Recall:        \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_recall()}"
+        f"Adverse Event Entities Recall:        \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall()}"
     )
     print(
-        f"Adverse Event Entities F1:            \t{annotated_files_cores.adverse_event_entity_correctness_matrix.get_f1()}"
+        f"Adverse Event Entities F1:            \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1()}"
     )
     print(
-        f"Causal Relations Precision:\t{annotated_files_cores.causal_relation_correctness_matrix.get_precision()}"
+        f"Causal Relations Precision:\t{annotated_collection_scores.causal_relation_correctness_matrix.get_precision()}"
     )
     print(
-        f"Causal Relations Recall:   \t{annotated_files_cores.causal_relation_correctness_matrix.get_recall()}"
+        f"Causal Relations Recall:   \t{annotated_collection_scores.causal_relation_correctness_matrix.get_recall()}"
     )
     print(
-        f"Causal Relations F1:       \t{annotated_files_cores.causal_relation_correctness_matrix.get_f1()}"
+        f"Causal Relations F1:       \t{annotated_collection_scores.causal_relation_correctness_matrix.get_f1()}"
     )

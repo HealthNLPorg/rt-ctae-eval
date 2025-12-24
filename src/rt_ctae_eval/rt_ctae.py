@@ -62,6 +62,14 @@ class CausalRelation(Relation):
 
 @dataclass
 class AnnotatedFileScores:
+    file_id: int
+    rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
+    adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
+    causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
+
+
+@dataclass
+class AnnotatedCorpusScores:
     rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
     adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
     causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
