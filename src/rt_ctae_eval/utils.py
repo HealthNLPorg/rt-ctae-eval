@@ -1,5 +1,5 @@
 from operator import attrgetter
-from lseval.datatypes import Entity, Relation, SingleAnnotatorCorpus, AnnotatedFile
+from lseval.datatypes import Entity, Relation, AnnotatedFile
 from functools import partial
 from lseval.correctness_matrix import CorrectnessMatrix
 from lseval.score import (
@@ -217,90 +217,3 @@ def update_corpus_scores(
         file_scores.causal_relation_correctness_matrix,
     )
     return corpus_scores
-
-
-def score_corpus(
-    prediction_corpus: SingleAnnotatorCorpus,
-    reference_corpus: SingleAnnotatorCorpus,
-    overlap: bool,
-    per_document: bool,
-) -> None:
-    annotated_corpus_scores = AnnotatedCorpusScores(
-        rt_entity_correctness_matrix=CorrectnessMatrix(),
-        adverse_event_entity_correctness_matrix=CorrectnessMatrix(),
-        causal_relation_correctness_matrix=CorrectnessMatrix(),
-    )
-    file_id_to_prediction_files = {
-        annotated_file.file_id: annotated_file
-        for annotated_file in prediction_corpus.annotated_files
-    }
-    file_id_to_reference_files = {
-        annotated_file.file_id: annotated_file
-        for annotated_file in reference_corpus.annotated_files
-    }
-    for file_id in sorted(
-        file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
-    ):
-        reference_file = file_id_to_reference_files.get(
-            file_id,
-            # AnnotatedFile(file_id=file_id, entities=frozenset(), relations=frozenset()),
-            None,
-        )
-        prediction_file = file_id_to_prediction_files.get(
-            file_id,
-            # AnnotatedFile(file_id=file_id, entities=frozenset(), relations=frozenset()),
-            None,
-        )
-        if reference_file is None or prediction_file is None:
-            logger.error(f"Missing annotations for {file_id}")
-            logger.error(
-                f"Reference file {'present' if reference_file is not None else 'absent'}, Prediction file {'present' if prediction_file is not None else 'absent'}"
-            )
-            continue
-        annotated_file_scores = score_file(
-            file_id=file_id,
-            prediction_file=prediction_file,
-            reference_file=reference_file,
-            overlap=overlap,
-        )
-        annotated_corpus_scores = update_corpus_scores(
-            annotated_corpus_scores, annotated_file_scores
-        )
-        if per_document:
-            print(f"File {file_id} scores:")
-            print_metrics(annotated_file_scores)
-
-    print("Corpus scores:")
-    print_metrics(annotated_corpus_scores)
-
-
-def print_metrics(
-    annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
-) -> None:
-    print(
-        f"RT Entities Precision:     \t{annotated_collection_scores.rt_entity_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"RT Entities Recall:        \t{annotated_collection_scores.rt_entity_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"RT Entities F1:            \t{annotated_collection_scores.rt_entity_correctness_matrix.get_f1():.3f}"
-    )
-    print(
-        f"Adverse Event Entities Precision:     \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"Adverse Event Entities Recall:        \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"Adverse Event Entities F1:            \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1():.3f}"
-    )
-    print(
-        f"Causal Relations Precision:\t{annotated_collection_scores.causal_relation_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"Causal Relations Recall:   \t{annotated_collection_scores.causal_relation_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"Causal Relations F1:       \t{annotated_collection_scores.causal_relation_correctness_matrix.get_f1():.3f}"
-    )
