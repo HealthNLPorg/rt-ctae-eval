@@ -198,6 +198,7 @@ def update_correctness_matrix(
     needs_updates.false_positives = warned_set_update(
         needs_updates.false_positives, has_updates.false_positives
     )
+    needs_updates.support += has_updates.support
     return needs_updates
 
 
