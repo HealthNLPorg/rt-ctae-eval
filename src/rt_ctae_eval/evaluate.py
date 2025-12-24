@@ -9,6 +9,7 @@ from lseval.datatypes import SingleAnnotatorCorpus
 from lseval.correctness_matrix import CorrectnessMatrix
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from itertools import permutations
+from tabulate import tabulate
 
 parser = argparse.ArgumentParser(description="")
 parser.add_argument(
@@ -108,32 +109,30 @@ def score_corpus(
 def print_metrics(
     annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
 ) -> None:
+    rt_row = [
+        "Radiotherapy Treatments",
+        f"{annotated_collection_scores.rt_entity_correctness_matrix.get_f1():.3f}",
+        f"{annotated_collection_scores.rt_entity_correctness_matrix.get_precision():.3f}",
+        f"{annotated_collection_scores.rt_entity_correctness_matrix.get_recall():.3f}",
+        f"{annotated_collection_scores.rt_entity_correctness_matrix.get_support()}",
+    ]
+    adverse_event_row = [
+        "Adverse Events",
+        f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1():.3f}",
+        f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision():.3f}",
+        f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall():.3f}",
+        f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_support()}",
+    ]
+    causal_relation_row = [
+        "Causal Relations",
+        f"{annotated_collection_scores.causal_relation_correctness_matrix.get_f1():.3f}",
+        f"{annotated_collection_scores.causal_relation_correctness_matrix.get_precision():.3f}",
+        f"{annotated_collection_scores.causal_relation_correctness_matrix.get_recall():.3f}",
+        f"{annotated_collection_scores.causal_relation_correctness_matrix.get_support()}",
+    ]
+    rows = [rt_row, adverse_event_row, causal_relation_row]
     print(
-        f"RT Entities Precision:     \t{annotated_collection_scores.rt_entity_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"RT Entities Recall:        \t{annotated_collection_scores.rt_entity_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"RT Entities F1:            \t{annotated_collection_scores.rt_entity_correctness_matrix.get_f1():.3f}"
-    )
-    print(
-        f"Adverse Event Entities Precision:     \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"Adverse Event Entities Recall:        \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"Adverse Event Entities F1:            \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1():.3f}"
-    )
-    print(
-        f"Causal Relations Precision:\t{annotated_collection_scores.causal_relation_correctness_matrix.get_precision():.3f}"
-    )
-    print(
-        f"Causal Relations Recall:   \t{annotated_collection_scores.causal_relation_correctness_matrix.get_recall():.3f}"
-    )
-    print(
-        f"Causal Relations F1:       \t{annotated_collection_scores.causal_relation_correctness_matrix.get_f1():.3f}"
+        tabulate(rows, headers=["Annotation", "F1", "Precision", "Recall", "Support"])
     )
 
 
