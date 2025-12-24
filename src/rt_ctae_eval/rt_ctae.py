@@ -6,7 +6,8 @@ from lseval.correctness_matrix import CorrectnessMatrix
 from typing import Any
 
 from lseval.datatypes import Entity, Relation
-from .meta import RT_CUI, NaranjoScale
+
+RT_CUI = "C1522449"
 
 
 def cuis_are_radiation_treatment(cuis: set[str]) -> bool:
@@ -15,6 +16,18 @@ def cuis_are_radiation_treatment(cuis: set[str]) -> bool:
 
 def cuis_are_adverse_event(cuis: set[str]) -> bool:
     return RT_CUI not in cuis
+
+
+class NaranjoScale(Enum):
+    DOUBTFUL = "Doubtful"
+    POSSIBLE = "Possible"
+    PROBABLE = "Probable"
+    CERTAIN = "Certain"
+    NA = "N/A"
+
+    @classmethod
+    def _missing_(cls, value):
+        return NaranjoScale.NA
 
 
 class EventType(Enum):

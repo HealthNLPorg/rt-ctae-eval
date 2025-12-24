@@ -10,7 +10,8 @@ dependencies = [
              "ipython",
              "polars",
              "more-itertools",
-             "lseval"
+             "lseval",
+             "tabulate"
 ]
 [tool.uv.sources]
 lseval = { path = "/Users/etg/Repos/lseval", editable = true }
