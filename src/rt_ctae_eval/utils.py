@@ -278,29 +278,29 @@ def print_metrics(
     annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
 ) -> None:
     print(
-        f"RT Entities Precision:     \t{annotated_collection_scores.rt_entity_correctness_matrix.get_precision()}"
+        f"RT Entities Precision:     \t{annotated_collection_scores.rt_entity_correctness_matrix.get_precision():.3f}"
     )
     print(
-        f"RT Entities Recall:        \t{annotated_collection_scores.rt_entity_correctness_matrix.get_recall()}"
+        f"RT Entities Recall:        \t{annotated_collection_scores.rt_entity_correctness_matrix.get_recall():.3f}"
     )
     print(
-        f"RT Entities F1:            \t{annotated_collection_scores.rt_entity_correctness_matrix.get_f1()}"
+        f"RT Entities F1:            \t{annotated_collection_scores.rt_entity_correctness_matrix.get_f1():.3f}"
     )
     print(
-        f"Adverse Event Entities Precision:     \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision()}"
+        f"Adverse Event Entities Precision:     \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_precision():.3f}"
     )
     print(
-        f"Adverse Event Entities Recall:        \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall()}"
+        f"Adverse Event Entities Recall:        \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall():.3f}"
     )
     print(
-        f"Adverse Event Entities F1:            \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1()}"
+        f"Adverse Event Entities F1:            \t{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_f1():.3f}"
     )
     print(
-        f"Causal Relations Precision:\t{annotated_collection_scores.causal_relation_correctness_matrix.get_precision()}"
+        f"Causal Relations Precision:\t{annotated_collection_scores.causal_relation_correctness_matrix.get_precision():.3f}"
     )
     print(
-        f"Causal Relations Recall:   \t{annotated_collection_scores.causal_relation_correctness_matrix.get_recall()}"
+        f"Causal Relations Recall:   \t{annotated_collection_scores.causal_relation_correctness_matrix.get_recall():.3f}"
     )
     print(
-        f"Causal Relations F1:       \t{annotated_collection_scores.causal_relation_correctness_matrix.get_f1()}"
+        f"Causal Relations F1:       \t{annotated_collection_scores.causal_relation_correctness_matrix.get_f1():.3f}"
     )
