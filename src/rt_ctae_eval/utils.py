@@ -183,9 +183,9 @@ def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
     return needs_updates
 
 
-def update_correctness_matrix(
-    needs_updates: CorrectnessMatrix, has_updates: CorrectnessMatrix
-) -> CorrectnessMatrix:
+def update_correctness_matrix[T](
+    needs_updates: CorrectnessMatrix[T], has_updates: CorrectnessMatrix[T]
+) -> CorrectnessMatrix[T]:
     needs_updates.true_negatives = warned_set_update(
         needs_updates.true_negatives, has_updates.true_negatives
     )
@@ -218,3 +218,26 @@ def update_corpus_scores(
         file_scores.causal_relation_correctness_matrix,
     )
     return corpus_scores
+
+
+def warned_merge[T](arg1: set[T], arg2: set[T]) -> set[T]:
+    original_total = len(arg1) + len(arg2)
+    merged = arg1 & arg2
+    if original_total > len(merged):
+        ValueError(
+            f"arg1 and arg2 have {original_total - len(merged)} non-unique entries"
+        )
+        return set()
+    return merged
+
+
+# different from the update based version
+def merge_correctness_matrices[T](
+    arg1: CorrectnessMatrix[T], arg2: CorrectnessMatrix[T]
+) -> CorrectnessMatrix[T]:
+    return CorrectnessMatrix(
+        true_negatives=warned_merge(arg1.true_negatives, arg2.true_negatives),
+        true_positives=warned_merge(arg1.true_positives, arg2.true_positives),
+        false_negatives=warned_merge(arg1.false_negatives, arg2.false_negatives),
+        false_positives=warned_merge(arg1.false_positives, arg2.false_positives),
+    )

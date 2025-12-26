@@ -11,6 +11,13 @@ from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from itertools import permutations
 from tabulate import tabulate
 
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    level=logging.INFO,
+)
 parser = argparse.ArgumentParser(description="")
 parser.add_argument(
     "--corpus_json",
@@ -42,14 +49,6 @@ parser.add_argument(
     help="Print document level stores",
 )
 
-logger = logging.getLogger(__name__)
-
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    level=logging.INFO,
-)
-
 
 def score_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
@@ -75,12 +74,10 @@ def score_corpus(
     ):
         reference_file = file_id_to_reference_files.get(
             file_id,
-            # AnnotatedFile(file_id=file_id, entities=frozenset(), relations=frozenset()),
             None,
         )
         prediction_file = file_id_to_prediction_files.get(
             file_id,
-            # AnnotatedFile(file_id=file_id, entities=frozenset(), relations=frozenset()),
             None,
         )
         if reference_file is None or prediction_file is None:
