@@ -1,5 +1,5 @@
 from operator import attrgetter
-from lseval.datatypes import Entity, Relation, AnnotatedFile
+from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel
 from functools import partial
 from lseval.correctness_matrix import CorrectnessMatrix
 from lseval.score import (
@@ -63,6 +63,49 @@ def to_adverse_event_entity(entity: Entity, file_id: int) -> AdverseEventEntity:
         cuis=entity.cuis,
         source_annotations=entity.source_annotations,
     )
+
+
+def parse_dtr_entities(
+    annotated_file: AnnotatedFile,
+) -> Mapping[DocTimeRel, set[Entity]]:
+    get_dtr = attrgetter("dtr")
+
+    return {
+        dtr: set(entities)
+        for dtr, entities in groupby(
+            sorted(annotated_file.entities, key=get_dtr), key=get_dtr
+        )
+    }
+
+
+def build_category_correctness_matrices[T](
+    predicted_category_entities: Mapping[T, set[Entity]],
+    reference_category_entities: Mapping[T, set[Entity]],
+    overlap: bool,
+) -> Mapping[T, CorrectnessMatrix[Entity]]:
+    category_correctness_matrices = {}
+    for category in (
+        predicted_category_entities.keys() | reference_category_entities.keys()
+    ):
+        category_correctness_matrices[category] = build_entity_correctness_matrix(
+            predicted_entities=predicted_category_entities.get(category, set()),
+            reference_entities=reference_category_entities.get(category, set()),
+            overlap=overlap,
+        )
+    return category_correctness_matrices
+
+
+def parse_cui_entities(
+    annotated_file: AnnotatedFile,
+) -> Mapping[str, set[Entity]]:
+    cui_to_entity = {}
+    for entity in annotated_file.entities:
+        for cui in entity.cuis:
+            if cui not in cui_to_entity:
+                cui_to_entity[cui] = set()
+            else:
+                cui_to_entity[cui].add(entity)
+    return cui_to_entity
 
 
 def parse_entities(annotated_file: AnnotatedFile) -> Mapping[EventType, set[Entity]]:
@@ -169,6 +212,19 @@ def score_file(
             ),
             overlap=overlap,
         ),
+        dtr_correctness_matrices=build_category_correctness_matrices(
+            predicted_category_entities=parse_dtr_entities(prediction_file),
+            reference_category_entities=parse_dtr_entities(reference_file),
+            overlap=overlap,
+        ),
+        cui_correctness_totals={
+            cui: correctness_matrix.to_correctness_totals()
+            for cui, correctness_matrix in build_category_correctness_matrices(
+                predicted_category_entities=parse_cui_entities(prediction_file),
+                reference_category_entities=parse_cui_entities(reference_file),
+                overlap=overlap,
+            ).items()
+        },
     )
 
 

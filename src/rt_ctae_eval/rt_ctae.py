@@ -1,11 +1,12 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 
 from enum import Enum
-from lseval.correctness_matrix import CorrectnessMatrix
+from lseval.correctness_matrix import CorrectnessMatrix, Correctness
 from typing import Any
 
-from lseval.datatypes import Entity, Relation
+from lseval.datatypes import Entity, Relation, DocTimeRel
 
 RT_CUI = "C1522449"
 
@@ -79,6 +80,8 @@ class AnnotatedFileScores:
     rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
     adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
     causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
+    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = {}
+    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = {}
 
 
 @dataclass
@@ -86,3 +89,5 @@ class AnnotatedCorpusScores:
     rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
     adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
     causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
+    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = {}
+    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = {}
