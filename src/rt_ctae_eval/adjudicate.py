@@ -4,7 +4,7 @@ import logging
 from lseval.utils import organize_corpus_annotations_by_annotator
 from lseval.datatypes import SingleAnnotatorCorpus
 from itertools import combinations
-from .annotator import get_id_to_annotator_mappping
+from .annotator import get_id_to_annotator_mappping, get_annotator_to_file_ids_mappping
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ parser.add_argument(
 )
 
 
-def score_corpus(
+def adjudicate_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
     overlap: bool,
@@ -78,9 +78,10 @@ def score_corpus(
             continue
 
 
-def score_corpus_all_annnotators(
+def adjudicate_corpus_all_annnotators(
     corpus_json: str,
     annotator_ids_tsv: str,
+    annotator_to_file_ids_tsv: str | None,
     overlap: bool,
     annotator_ids_to_ignore: list[int],
 ) -> None:
@@ -94,15 +95,29 @@ def score_corpus_all_annnotators(
         id_to_unique_annotator=id_to_unique_annotator,
         annotator_ids_to_ignore=annotator_ids_to_ignore,
     )
+    if annotator_to_file_ids_tsv is not None:
+        annotator_to_file_ids_mapping = get_annotator_to_file_ids_mappping(
+            annotator_to_file_ids_tsv
+        )
+    else:
+        annotator_to_file_ids_mapping = {}
     for prediction_annotator, reference_annotator in combinations(
         annotator_to_single_annotator_corpus.keys(), r=2
     ):
-        prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
-        reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
+        # Then it's open season
+        if len(annotator_to_file_ids_mapping) == 0:
+            prediction_corpus = annotator_to_single_annotator_corpus[
+                prediction_annotator
+            ]
+            reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
+        else:
+            NotImplementedError(
+                "Need to figure out mapping logic for file IDs for IAA etc"
+            )
         logger.info(
             f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
         )
-        score_corpus(
+        adjudicate_corpus(
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
             overlap=overlap,
@@ -111,9 +126,10 @@ def score_corpus_all_annnotators(
 
 def main() -> None:
     args = parser.parse_args()
-    score_corpus_all_annnotators(
+    adjudicate_corpus_all_annnotators(
         corpus_json=args.corpus_json,
         annotator_ids_tsv=args.annotator_ids_tsv,
+        annotator_to_file_ids_tsv=args.annotator_to_file_ids_tsv,
         overlap=args.overlap,
         annotator_ids_to_ignore=args.annotator_ids_to_ignore,
     )
