@@ -68,14 +68,14 @@ def to_adverse_event_entity(entity: Entity, file_id: int) -> AdverseEventEntity:
 def parse_dtr_entities(
     annotated_file: AnnotatedFile,
 ) -> Mapping[DocTimeRel, set[Entity]]:
-    get_dtr = attrgetter("dtr")
-
-    return {
-        dtr: set(entities)
-        for dtr, entities in groupby(
-            sorted(annotated_file.entities, key=get_dtr), key=get_dtr
-        )
-    }
+    updated_mapping = {}
+    for entity in annotated_file.entities:
+        dtr = entity.dtr
+        if dtr not in updated_mapping.keys():
+            updated_mapping[dtr] = set()
+        else:
+            updated_mapping[dtr].add(entity)
+    return updated_mapping
 
 
 def build_category_correctness_matrices[T](
@@ -101,7 +101,7 @@ def parse_cui_entities(
     cui_to_entity = {}
     for entity in annotated_file.entities:
         for cui in entity.cuis:
-            if cui not in cui_to_entity:
+            if cui not in cui_to_entity.keys():
                 cui_to_entity[cui] = set()
             else:
                 cui_to_entity[cui].add(entity)
@@ -271,6 +271,18 @@ def update_category_correctness_matrices[S, T](
     return updated_mapping
 
 
+def merge_correctness_totals[T](
+    arg1: Mapping[T, int],
+    arg2: Mapping[T, int],
+) -> Mapping[T, int]:
+    updated_mapping = {}
+    for correctness in arg1.keys() | arg2.keys():
+        updated_mapping[correctness] = arg1.get(correctness, 0) + arg2.get(
+            correctness, 0
+        )
+    return updated_mapping
+
+
 def update_category_to_correctness_totals[S, T](
     needs_updates: Mapping[S, Mapping[T, int]],
     has_updates: Mapping[S, Mapping[T, int]],
@@ -280,14 +292,9 @@ def update_category_to_correctness_totals[S, T](
         updated_mapping[category] = {}
         needs_updates_correctness_counts = needs_updates.get(category, {})
         has_updates_correctness_counts = has_updates.get(category, {})
-        for correctness in (
-            needs_updates_correctness_counts.keys()
-            | has_updates_correctness_counts.keys()
-        ):
-            updated_mapping[category][correctness] = (
-                needs_updates_correctness_counts.get(correctness, 0)
-                + has_updates_correctness_counts.get(correctness, 0)
-            )
+        updated_mapping[category] = merge_correctness_totals(
+            needs_updates_correctness_counts, has_updates_correctness_counts
+        )
     return updated_mapping
 
 
@@ -319,24 +326,24 @@ def update_corpus_scores(
     return corpus_scores
 
 
-def warned_merge[T](arg1: set[T], arg2: set[T]) -> set[T]:
-    original_total = len(arg1) + len(arg2)
-    merged = arg1 & arg2
-    if original_total > len(merged):
-        ValueError(
-            f"arg1 and arg2 have {original_total - len(merged)} non-unique entries"
-        )
-        return set()
-    return merged
+# def warned_merge[T](arg1: set[T], arg2: set[T]) -> set[T]:
+#     original_total = len(arg1) + len(arg2)
+#     merged = arg1 & arg2
+#     if original_total > len(merged):
+#         ValueError(
+#             f"arg1 and arg2 have {original_total - len(merged)} non-unique entries"
+#         )
+#         return set()
+#     return merged
 
 
-# different from the update based version
-def merge_correctness_matrices[T](
-    arg1: CorrectnessMatrix[T], arg2: CorrectnessMatrix[T]
-) -> CorrectnessMatrix[T]:
-    return CorrectnessMatrix(
-        true_negatives=warned_merge(arg1.true_negatives, arg2.true_negatives),
-        true_positives=warned_merge(arg1.true_positives, arg2.true_positives),
-        false_negatives=warned_merge(arg1.false_negatives, arg2.false_negatives),
-        false_positives=warned_merge(arg1.false_positives, arg2.false_positives),
-    )
+# # different from the update based version
+# def merge_correctness_matrices[T](
+#     arg1: CorrectnessMatrix[T], arg2: CorrectnessMatrix[T]
+# ) -> CorrectnessMatrix[T]:
+#     return CorrectnessMatrix(
+#         true_negatives=warned_merge(arg1.true_negatives, arg2.true_negatives),
+#         true_positives=warned_merge(arg1.true_positives, arg2.true_positives),
+#         false_negatives=warned_merge(arg1.false_negatives, arg2.false_negatives),
+#         false_positives=warned_merge(arg1.false_positives, arg2.false_positives),
+#     )

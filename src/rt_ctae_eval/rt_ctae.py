@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 from enum import Enum
@@ -80,8 +80,12 @@ class AnnotatedFileScores:
     rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
     adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
     causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
-    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = {}
-    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = {}
+    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = field(
+        default_factory=dict
+    )
+    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass
@@ -89,5 +93,9 @@ class AnnotatedCorpusScores:
     rt_entity_correctness_matrix: CorrectnessMatrix[RTEntity]
     adverse_event_entity_correctness_matrix: CorrectnessMatrix[AdverseEventEntity]
     causal_relation_correctness_matrix: CorrectnessMatrix[CausalRelation]
-    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = {}
-    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = {}
+    dtr_correctness_matrices: Mapping[DocTimeRel, CorrectnessMatrix[Entity]] = field(
+        default_factory=dict
+    )
+    cui_correctness_totals: Mapping[str, Mapping[Correctness, int]] = field(
+        default_factory=dict
+    )

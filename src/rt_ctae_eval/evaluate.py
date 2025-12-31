@@ -4,11 +4,17 @@ from typing import Mapping
 import json
 import logging
 from lseval.utils import organize_corpus_annotations_by_annotator
-from .utils import update_corpus_scores, score_file
+from .utils import (
+    update_corpus_scores,
+    score_file,
+    update_correctness_matrix,
+    merge_correctness_totals,
+)
 from lseval.datatypes import SingleAnnotatorCorpus
-from lseval.correctness_matrix import CorrectnessMatrix
+from lseval.correctness_matrix import CorrectnessMatrix, score_totals
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from itertools import permutations
+from functools import reduce
 from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
@@ -106,6 +112,14 @@ def score_corpus(
 def print_metrics(
     annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
 ) -> None:
+    cumulative_dtr_matrix = reduce(
+        update_correctness_matrix,
+        annotated_collection_scores.dtr_correctness_matrices.values(),
+    )
+    cumulative_cui_totals = reduce(
+        merge_correctness_totals,
+        annotated_collection_scores.cui_correctness_totals.values(),
+    )
     rt_row = [
         "Radiotherapy Treatments",
         f"{annotated_collection_scores.rt_entity_correctness_matrix.get_f1():.3f}",
@@ -120,6 +134,21 @@ def print_metrics(
         f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_recall():.3f}",
         f"{annotated_collection_scores.adverse_event_entity_correctness_matrix.get_support()}",
     ]
+    dtr_row = [
+        "DocTimeRel",
+        f"{cumulative_dtr_matrix.get_f1():.3f}",
+        f"{cumulative_dtr_matrix.get_precision():.3f}",
+        f"{cumulative_dtr_matrix.get_recall():.3f}",
+        f"{cumulative_dtr_matrix.get_support()}",
+    ]
+    cui_f1, cui_prec, cui_recall, cui_support = score_totals(cumulative_cui_totals)
+    cui_row = [
+        "CUIs",
+        f"{cui_f1:.3f}",
+        f"{cui_prec:.3f}",
+        f"{cui_recall:.3f}",
+        f"{cui_support}",
+    ]
     causal_relation_row = [
         "Causal Relations",
         f"{annotated_collection_scores.causal_relation_correctness_matrix.get_f1():.3f}",
@@ -127,7 +156,13 @@ def print_metrics(
         f"{annotated_collection_scores.causal_relation_correctness_matrix.get_recall():.3f}",
         f"{annotated_collection_scores.causal_relation_correctness_matrix.get_support()}",
     ]
-    rows = [rt_row, adverse_event_row, causal_relation_row]
+    rows = [
+        rt_row,
+        adverse_event_row,
+        dtr_row,
+        cui_row,
+        causal_relation_row,
+    ]
     print(
         tabulate(rows, headers=["Annotation", "F1", "Precision", "Recall", "Support"])
     )
