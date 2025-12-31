@@ -1,5 +1,4 @@
 import argparse
-import polars as pl
 from typing import Mapping
 import json
 import logging
@@ -17,6 +16,7 @@ from itertools import permutations
 from functools import reduce
 from tabulate import tabulate
 from operator import itemgetter
+from .annotator import get_id_to_annotator_mappping
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ parser.add_argument(
     "--annotator_ids_tsv",
     help="TSV with rows of the form <annotator name><tab><ID 1>,...,<ID N>",
 )
-
 parser.add_argument(
     "--annotator_ids_to_ignore",
     help="Specious fix to avoid wrangling JSON - probably should remove for 'primetime'",
@@ -230,20 +229,6 @@ def print_metrics(
     print(
         tabulate(rows, headers=["Annotation", "F1", "Precision", "Recall", "Support"])
     )
-
-
-def get_id_to_annotator_mappping(
-    annotator_ids_tsv: str, annotator_ids_to_ignore: list[int]
-) -> Mapping[int, str]:
-    annotator_with_ids_df = pl.read_csv(annotator_ids_tsv, separator="\t")
-    id_to_unique_annotator = {}
-    for annnotator_name, clustered_ids in zip(
-        annotator_with_ids_df["annotator_name"], annotator_with_ids_df["annotator_ids"]
-    ):
-        for annotator_id in map(int, clustered_ids.split(",")):
-            if annotator_id not in annotator_ids_to_ignore:
-                id_to_unique_annotator[annotator_id] = annnotator_name
-    return id_to_unique_annotator
 
 
 def score_corpus_all_annnotators(
