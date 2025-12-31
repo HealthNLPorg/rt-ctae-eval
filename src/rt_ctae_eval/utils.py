@@ -258,6 +258,39 @@ def update_correctness_matrix[T](
     return needs_updates
 
 
+def update_category_correctness_matrices[S, T](
+    needs_updates: Mapping[S, CorrectnessMatrix[T]],
+    has_updates: Mapping[S, CorrectnessMatrix[T]],
+) -> Mapping[S, CorrectnessMatrix[T]]:
+    updated_mapping = {}
+    for category in needs_updates.keys() | has_updates.keys():
+        updated_mapping[category] = update_correctness_matrix(
+            needs_updates.get(category, CorrectnessMatrix()),
+            has_updates.get(category, CorrectnessMatrix()),
+        )
+    return updated_mapping
+
+
+def update_category_to_correctness_totals[S, T](
+    needs_updates: Mapping[S, Mapping[T, int]],
+    has_updates: Mapping[S, Mapping[T, int]],
+) -> Mapping[S, Mapping[T, int]]:
+    updated_mapping = {}
+    for category in needs_updates.keys() | has_updates.keys():
+        updated_mapping[category] = {}
+        needs_updates_correctness_counts = needs_updates.get(category, {})
+        has_updates_correctness_counts = has_updates.get(category, {})
+        for correctness in (
+            needs_updates_correctness_counts.keys()
+            | has_updates_correctness_counts.keys()
+        ):
+            updated_mapping[category][correctness] = (
+                needs_updates_correctness_counts.get(correctness, 0)
+                + has_updates_correctness_counts.get(correctness, 0)
+            )
+    return updated_mapping
+
+
 def update_corpus_scores(
     corpus_scores: AnnotatedCorpusScores, file_scores: AnnotatedFileScores
 ) -> AnnotatedCorpusScores:
@@ -272,6 +305,16 @@ def update_corpus_scores(
     corpus_scores.causal_relation_correctness_matrix = update_correctness_matrix(
         corpus_scores.causal_relation_correctness_matrix,
         file_scores.causal_relation_correctness_matrix,
+    )
+
+    corpus_scores.dtr_correctness_matrices = update_category_correctness_matrices(
+        corpus_scores.dtr_correctness_matrices,
+        file_scores.dtr_correctness_matrices,
+    )
+
+    corpus_scores.cui_correctness_totals = update_category_to_correctness_totals(
+        corpus_scores.cui_correctness_totals,
+        file_scores.cui_correctness_totals,
     )
     return corpus_scores
 
