@@ -10,12 +10,13 @@ from .utils import (
     update_correctness_matrix,
     merge_correctness_totals,
 )
-from lseval.datatypes import SingleAnnotatorCorpus
-from lseval.correctness_matrix import CorrectnessMatrix, score_totals
+from lseval.datatypes import SingleAnnotatorCorpus, DocTimeRel, Entity
+from lseval.correctness_matrix import CorrectnessMatrix, score_totals, Correctness
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from itertools import permutations
 from functools import reduce
 from tabulate import tabulate
+from operator import itemgetter
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,69 @@ def score_corpus(
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
+
+
+def print_cui_by_category(
+    annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
+) -> None:
+    def build_row(
+        cui: str, correctness_totals: Mapping[Correctness, int]
+    ) -> tuple[list[str], int]:
+        cui_f1, cui_prec, cui_recall, cui_support = score_totals(correctness_totals)
+        return [
+            cui,
+            f"{cui_f1:.3f}",
+            f"{cui_prec:.3f}",
+            f"{cui_recall:.3f}",
+            f"{cui_support}",
+        ], cui_support
+
+    rows_and_supports = (
+        build_row(cui, correctness_totals)
+        for (
+            cui,
+            correctness_totals,
+        ) in annotated_collection_scores.cui_correctness_totals.items()
+    )
+    sorted_rows = list(
+        map(itemgetter(0), sorted(rows_and_supports, key=itemgetter(1), reverse=True))
+    )
+
+    print(
+        tabulate(sorted_rows, headers=["CUI", "F1", "Precision", "Recall", "Support"])
+    )
+
+
+def print_dtr_by_category(
+    annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
+) -> None:
+    def build_row(
+        dtr: DocTimeRel, correctness_matrix: CorrectnessMatrix[Entity]
+    ) -> tuple[list[str], int]:
+        return [
+            dtr.value,
+            f"{correctness_matrix.get_f1():.3f}",
+            f"{correctness_matrix.get_precision():.3f}",
+            f"{correctness_matrix.get_recall():.3f}",
+            f"{correctness_matrix.get_support()}",
+        ], correctness_matrix.get_support()
+
+    rows_and_supports = (
+        build_row(dtr, correctness_matrix)
+        for (
+            dtr,
+            correctness_matrix,
+        ) in annotated_collection_scores.dtr_correctness_matrices.items()
+    )
+    sorted_rows = list(
+        map(itemgetter(0), sorted(rows_and_supports, key=itemgetter(1), reverse=True))
+    )
+    print(
+        tabulate(
+            sorted_rows,
+            headers=["DTR Category", "F1", "Precision", "Recall", "Support"],
+        )
+    )
 
 
 def print_metrics(
