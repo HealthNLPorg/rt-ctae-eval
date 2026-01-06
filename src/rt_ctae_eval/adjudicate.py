@@ -1,9 +1,12 @@
 import argparse
+import os
 import json
 import logging
 from lseval.utils import organize_corpus_annotations_by_annotator
-from lseval.datatypes import SingleAnnotatorCorpus
+from lseval.adjudication import build_adjudication_file
+from lseval.datatypes import SingleAnnotatorCorpus, AnnotatedFile
 from itertools import combinations
+from .utils import score_file
 from .annotator import get_id_to_annotator_mappping, get_annotator_to_file_ids_mappping
 
 logger = logging.getLogger(__name__)
@@ -17,11 +20,19 @@ parser = argparse.ArgumentParser(description="")
 parser.add_argument(
     "--corpus_json",
     required=True,
+    type=str,
     help="Exported Label Studio JSON.",
 )
 
 parser.add_argument(
+    "--output_dir",
+    required=True,
+    type=str,
+    help="Exported Label Studio JSON.",
+)
+parser.add_argument(
     "--annotator_ids_tsv",
+    default=None,
     help="TSV with rows of the form <annotator name><tab><ID 1>,...,<ID N>",
 )
 
@@ -47,10 +58,15 @@ parser.add_argument(
 
 
 def adjudicate_corpus(
+    prediction_annotator: str,
+    reference_annotator: str,
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
     overlap: bool,
+    output_dir: str,
 ) -> None:
+    with open(os.path.join(output_dir, "adjudication"), mode="w") as f:
+        f.write("[")
     file_id_to_prediction_files = {
         annotated_file.file_id: annotated_file
         for annotated_file in prediction_corpus.annotated_files
@@ -59,9 +75,24 @@ def adjudicate_corpus(
         annotated_file.file_id: annotated_file
         for annotated_file in reference_corpus.annotated_files
     }
-    for file_id in sorted(
+    file_ids_not_shared_across_annotators = (
+        file_id_to_prediction_files.keys() ^ file_id_to_reference_files.keys()
+    )
+    if len(file_ids_not_shared_across_annotators) > 5:
+        logger.warning(
+            "No shared annotations for %d files",
+            len(file_ids_not_shared_across_annotators),
+        )
+    elif len(file_ids_not_shared_across_annotators) > 1:
+        logger.warning(
+            "No shared annotations for file IDs: %s",
+            ", ".join(map(str, sorted(file_ids_not_shared_across_annotators))),
+        )
+    file_ids = sorted(
         file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
-    ):
+    )
+    total_files = len(file_ids)
+    for idx, file_id in enumerate(file_ids):
         reference_file = file_id_to_reference_files.get(
             file_id,
             None,
@@ -77,9 +108,65 @@ def adjudicate_corpus(
             )
             continue
 
+        assert isinstance(reference_file, AnnotatedFile) and isinstance(
+            prediction_file, AnnotatedFile
+        )
+        reference_file_text = getattr(reference_file, "file_text", None)
+        prediction_file_text = getattr(reference_file, "file_text", None)
+        assert (
+            reference_file_text is not None
+            and reference_file_text == prediction_file_text
+        )
+        annotated_file_scores = score_file(
+            file_id=file_id,
+            prediction_file=prediction_file,
+            reference_file=reference_file,
+            overlap=overlap,
+        )
+        entity_to_typed_correctness_matrix = {}
+        for entity in reference_file.entities | prediction_file.entities:
+            if entity in annotated_file_scores.rt_entity_correctness_matrix:
+                entity_to_typed_correctness_matrix[entity] = (
+                    annotated_file_scores.rt_entity_correctness_matrix
+                )
+            elif (
+                entity in annotated_file_scores.adverse_event_entity_correctness_matrix
+            ):
+                entity_to_typed_correctness_matrix[entity] = (
+                    annotated_file_scores.adverse_event_entity_correctness_matrix
+                )
+        relation_to_typed_correctness_matrix = {}
+        for relation in reference_file.relations | prediction_file.relations:
+            relation_to_typed_correctness_matrix[relation] = (
+                annotated_file_scores.causal_relation_correctness_matrix
+            )
+        adjudication_file = build_adjudication_file(
+            file_id=file_id,
+            file_text=reference_file_text,
+            total_files=total_files,
+            reference_annotator=reference_annotator,
+            prediction_annotator=prediction_annotator,
+            # See if the types in lseval will work out just with Iterable etc
+            reference_entities=set(reference_file.entities),
+            prediction_entities=set(prediction_file.entities),
+            reference_relations=list(reference_file.relations),
+            prediction_relations=list(prediction_file.relations),
+            entity_to_typed_correctness_matrix=entity_to_typed_correctness_matrix,
+            relation_to_typed_correctness_matrix=relation_to_typed_correctness_matrix,
+        )
+
+        with open(os.path.join(output_dir, "adjudication"), mode="a") as f:
+            f.write(json.dumps(adjudication_file))
+            if idx < total_files - 1:
+                f.write(",")
+
+    with open(os.path.join(output_dir, "adjudication"), mode="a") as f:
+        f.write("]")
+
 
 def adjudicate_corpus_all_annnotators(
     corpus_json: str,
+    output_dir: str,
     annotator_ids_tsv: str,
     annotator_to_file_ids_tsv: str | None,
     overlap: bool,
@@ -118,9 +205,12 @@ def adjudicate_corpus_all_annnotators(
             f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
         )
         adjudicate_corpus(
+            prediction_annotator=prediction_annotator,
+            reference_annotator=reference_annotator,
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
             overlap=overlap,
+            output_dir=output_dir,
         )
 
 
@@ -128,6 +218,7 @@ def main() -> None:
     args = parser.parse_args()
     adjudicate_corpus_all_annnotators(
         corpus_json=args.corpus_json,
+        output_dir=args.output_dir,
         annotator_ids_tsv=args.annotator_ids_tsv,
         annotator_to_file_ids_tsv=args.annotator_to_file_ids_tsv,
         overlap=args.overlap,
