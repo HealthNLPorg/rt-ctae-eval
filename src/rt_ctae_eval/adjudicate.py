@@ -152,10 +152,10 @@ def adjudicate_corpus(
             reference_annotator=reference_annotator,
             prediction_annotator=prediction_annotator,
             # See if the types in lseval will work out just with Iterable etc
-            reference_entities=set(reference_file.entities),
-            prediction_entities=set(prediction_file.entities),
-            reference_relations=list(reference_file.relations),
-            prediction_relations=list(prediction_file.relations),
+            reference_entities=reference_file.entities,
+            prediction_entities=prediction_file.entities,
+            reference_relations=reference_file.relations,
+            prediction_relations=prediction_file.relations,
             entity_to_typed_correctness_matrix=entity_to_typed_correctness_matrix,
             relation_to_typed_correctness_matrix=relation_to_typed_correctness_matrix,
         )
