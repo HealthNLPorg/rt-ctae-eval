@@ -65,7 +65,10 @@ def adjudicate_corpus(
     overlap: bool,
     output_dir: str,
 ) -> None:
-    with open(os.path.join(output_dir, "adjudication"), mode="w") as f:
+    adjudication_json_path = os.path.join(
+        output_dir, f"Adjudication_{prediction_annotator}_{reference_annotator}.json"
+    )
+    with open(adjudication_json_path, mode="w") as f:
         f.write("[")
     file_id_to_prediction_files = {
         annotated_file.file_id: annotated_file
@@ -136,6 +139,8 @@ def adjudicate_corpus(
                     annotated_file_scores.adverse_event_entity_correctness_matrix
                 )
         relation_to_typed_correctness_matrix = {}
+        # For whatever reason ty isn't a big fan of comprehensions with conditions,
+        # and because I'm in sane I prefer type checker happiness to pythonicity
         for relation in reference_file.relations | prediction_file.relations:
             relation_to_typed_correctness_matrix[relation] = (
                 annotated_file_scores.causal_relation_correctness_matrix
@@ -155,12 +160,12 @@ def adjudicate_corpus(
             relation_to_typed_correctness_matrix=relation_to_typed_correctness_matrix,
         )
 
-        with open(os.path.join(output_dir, "adjudication"), mode="a") as f:
+        with open(adjudication_json_path, mode="a") as f:
             f.write(json.dumps(adjudication_file))
             if idx < total_files - 1:
                 f.write(",")
 
-    with open(os.path.join(output_dir, "adjudication"), mode="a") as f:
+    with open(adjudication_json_path, mode="a") as f:
         f.write("]")
 
 
