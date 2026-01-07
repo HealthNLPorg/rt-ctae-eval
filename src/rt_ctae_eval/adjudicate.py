@@ -5,7 +5,7 @@ import logging
 from lseval.utils import organize_corpus_annotations_by_annotator
 from lseval.adjudication import build_adjudication_file
 from lseval.datatypes import SingleAnnotatorCorpus, AnnotatedFile
-from itertools import combinations
+from itertools import combinations, chain
 from .utils import score_file
 from .annotator import get_id_to_annotator_mappping, get_annotator_to_file_ids_mappping
 
@@ -127,7 +127,7 @@ def adjudicate_corpus(
             overlap=overlap,
         )
         entity_to_typed_correctness_matrix = {}
-        for entity in reference_file.entities | prediction_file.entities:
+        for entity in chain(reference_file.entities, prediction_file.entities):
             if entity in annotated_file_scores.rt_entity_correctness_matrix:
                 entity_to_typed_correctness_matrix[entity] = (
                     annotated_file_scores.rt_entity_correctness_matrix
@@ -138,10 +138,17 @@ def adjudicate_corpus(
                 entity_to_typed_correctness_matrix[entity] = (
                     annotated_file_scores.adverse_event_entity_correctness_matrix
                 )
+            else:
+                print(annotated_file_scores.adverse_event_entity_correctness_matrix)
+                print(annotated_file_scores.rt_entity_correctness_matrix)
+                print(reference_file.entities)
+                print(prediction_file.entities)
+                print(entity)
+                raise ValueError("All entities should be accounted for")
         relation_to_typed_correctness_matrix = {}
         # For whatever reason ty isn't a big fan of comprehensions with conditions,
         # and because I'm in sane I prefer type checker happiness to pythonicity
-        for relation in reference_file.relations | prediction_file.relations:
+        for relation in chain(reference_file.relations, prediction_file.relations):
             relation_to_typed_correctness_matrix[relation] = (
                 annotated_file_scores.causal_relation_correctness_matrix
             )
