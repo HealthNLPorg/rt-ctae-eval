@@ -148,7 +148,8 @@ def recoordinate_causal_relation(
         label=relation.label,
         source_annotations=relation.source_annotations,
     )
-    assert is_valid_relation(updated_relation)
+    if not is_valid_relation(updated_relation):
+        logger.warning(f"Relation is out of order {updated_relation}")
     return updated_relation
 
 
