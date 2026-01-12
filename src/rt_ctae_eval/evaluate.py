@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import argparse
 from typing import Mapping
 import json
@@ -55,13 +56,30 @@ parser.add_argument(
     help="Print document level stores",
 )
 
+parser.add_argument("--exclude_ids", type=str, default=None)
+
+
+def exclusion_ids(exlude_ids_str: str) -> Sequence[int]:
+    if "," in exlude_ids_str:
+        return tuple(sorted(map(int, exlude_ids_str.split(","))))
+    elif "-" in exlude_ids_str:
+        first, second = exlude_ids_str.split("-")
+        return range(int(first), int(second))
+    else:
+        logger.warning("Ill-formed exclusion string: %s", exlude_ids_str)
+        return []
+
 
 def score_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
+    exlucsion_ids: Sequence[int],
     overlap: bool,
     per_document: bool,
 ) -> None:
+    def is_valid_file_id(file_id: int) -> bool:
+        return len(exlucsion_ids) == 0 or file_id not in exlucsion_ids
+
     annotated_corpus_scores = AnnotatedCorpusScores(
         rt_entity_correctness_matrix=CorrectnessMatrix(),
         adverse_event_entity_correctness_matrix=CorrectnessMatrix(),
@@ -70,10 +88,12 @@ def score_corpus(
     file_id_to_prediction_files = {
         annotated_file.file_id: annotated_file
         for annotated_file in prediction_corpus.annotated_files
+        if is_valid_file_id(annotated_file.file_id)
     }
     file_id_to_reference_files = {
         annotated_file.file_id: annotated_file
         for annotated_file in reference_corpus.annotated_files
+        if is_valid_file_id(annotated_file.file_id)
     }
     for file_id in sorted(
         file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
@@ -107,6 +127,7 @@ def score_corpus(
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
+    print_dtr_by_category(annotated_corpus_scores)
 
 
 def print_cui_by_category(
@@ -160,6 +181,7 @@ def print_dtr_by_category(
             dtr,
             correctness_matrix,
         ) in annotated_collection_scores.dtr_correctness_matrices.items()
+        if dtr is not None
     )
     sorted_rows = list(
         map(itemgetter(0), sorted(rows_and_supports, key=itemgetter(1), reverse=True))
@@ -234,9 +256,10 @@ def print_metrics(
 def score_corpus_all_annnotators(
     corpus_json: str,
     annotator_ids_tsv: str,
+    annotator_ids_to_ignore: list[int],
+    exclude_ids: str | None,
     overlap: bool,
     per_document: bool,
-    annotator_ids_to_ignore: list[int],
 ) -> None:
     with open(corpus_json, mode="rt") as f:
         raw_json_corpus = json.load(f)
@@ -248,6 +271,10 @@ def score_corpus_all_annnotators(
         id_to_unique_annotator=id_to_unique_annotator,
         annotator_ids_to_ignore=annotator_ids_to_ignore,
     )
+    if exclude_ids is not None:
+        file_exlusion_ids = exclusion_ids(exclude_ids)
+    else:
+        file_exlusion_ids = []
     for prediction_annotator, reference_annotator in permutations(
         annotator_to_single_annotator_corpus.keys(), r=2
     ):
@@ -259,6 +286,7 @@ def score_corpus_all_annnotators(
         score_corpus(
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
+            exlucsion_ids=file_exlusion_ids,
             overlap=overlap,
             per_document=per_document,
         )
@@ -269,9 +297,10 @@ def main() -> None:
     score_corpus_all_annnotators(
         corpus_json=args.corpus_json,
         annotator_ids_tsv=args.annotator_ids_tsv,
+        annotator_ids_to_ignore=args.annotator_ids_to_ignore,
+        exclude_ids=args.exclude_ids,
         overlap=args.overlap,
         per_document=args.per_document,
-        annotator_ids_to_ignore=args.annotator_ids_to_ignore,
     )
 
 

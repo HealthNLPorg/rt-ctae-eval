@@ -129,6 +129,7 @@ def adjudicate_corpus(
             reference_file=reference_file,
             overlap=overlap,
         )
+
         entity_correctness_matrices = cast(
             Iterable[CorrectnessMatrix[Entity]],
             [
@@ -194,7 +195,7 @@ def adjudicate_corpus_all_annnotators(
             ]
             reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
         else:
-            NotImplementedError(
+            raise NotImplementedError(
                 "Need to figure out mapping logic for file IDs for IAA etc"
             )
         logger.info(
