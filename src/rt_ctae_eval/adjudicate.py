@@ -1,11 +1,14 @@
+from collections.abc import Iterable
 import argparse
 import os
+from typing import cast
 import json
 import logging
 from lseval.utils import organize_corpus_annotations_by_annotator
 from lseval.adjudication import build_adjudication_file
-from lseval.datatypes import SingleAnnotatorCorpus, AnnotatedFile
-from itertools import combinations, chain
+from lseval.datatypes import SingleAnnotatorCorpus, AnnotatedFile, Relation, Entity
+from lseval.correctness_matrix import CorrectnessMatrix
+from itertools import combinations
 from .utils import score_file
 from .annotator import get_id_to_annotator_mappping, get_annotator_to_file_ids_mappping
 
@@ -126,27 +129,18 @@ def adjudicate_corpus(
             reference_file=reference_file,
             overlap=overlap,
         )
-        entity_to_typed_correctness_matrix = {}
-        for entity in chain(reference_file.entities, prediction_file.entities):
-            if entity in annotated_file_scores.rt_entity_correctness_matrix:
-                entity_to_typed_correctness_matrix[entity] = (
-                    annotated_file_scores.rt_entity_correctness_matrix
-                )
-            elif (
-                entity in annotated_file_scores.adverse_event_entity_correctness_matrix
-            ):
-                entity_to_typed_correctness_matrix[entity] = (
-                    annotated_file_scores.adverse_event_entity_correctness_matrix
-                )
-            else:
-                raise ValueError("All entities should be accounted for")
-        relation_to_typed_correctness_matrix = {}
-        # For whatever reason ty isn't a big fan of comprehensions with conditions,
-        # and because I'm in sane I prefer type checker happiness to pythonicity
-        for relation in chain(reference_file.relations, prediction_file.relations):
-            relation_to_typed_correctness_matrix[relation] = (
-                annotated_file_scores.causal_relation_correctness_matrix
-            )
+
+        entity_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Entity]],
+            [
+                annotated_file_scores.rt_entity_correctness_matrix,
+                annotated_file_scores.adverse_event_entity_correctness_matrix,
+            ],
+        )
+        relation_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Relation]],
+            [annotated_file_scores.causal_relation_correctness_matrix],
+        )
         adjudication_file = build_adjudication_file(
             file_id=file_id,
             file_text=reference_file_text,
@@ -154,12 +148,8 @@ def adjudicate_corpus(
             reference_annotator=reference_annotator,
             prediction_annotator=prediction_annotator,
             # See if the types in lseval will work out just with Iterable etc
-            reference_entities=reference_file.entities,
-            prediction_entities=prediction_file.entities,
-            reference_relations=reference_file.relations,
-            prediction_relations=prediction_file.relations,
-            entity_to_typed_correctness_matrix=entity_to_typed_correctness_matrix,
-            relation_to_typed_correctness_matrix=relation_to_typed_correctness_matrix,
+            entity_correctness_matrices=entity_correctness_matrices,
+            relation_correctness_matrices=relation_correctness_matrices,
         )
 
         with open(adjudication_json_path, mode="a") as f:
