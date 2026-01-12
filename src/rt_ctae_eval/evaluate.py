@@ -127,6 +127,7 @@ def score_corpus(
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
+    print_dtr_by_category(annotated_corpus_scores)
 
 
 def print_cui_by_category(
@@ -180,6 +181,7 @@ def print_dtr_by_category(
             dtr,
             correctness_matrix,
         ) in annotated_collection_scores.dtr_correctness_matrices.items()
+        if dtr is not None
     )
     sorted_rows = list(
         map(itemgetter(0), sorted(rows_and_supports, key=itemgetter(1), reverse=True))

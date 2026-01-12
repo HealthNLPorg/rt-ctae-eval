@@ -139,11 +139,6 @@ def adjudicate_corpus(
                     annotated_file_scores.adverse_event_entity_correctness_matrix
                 )
             else:
-                print(annotated_file_scores.adverse_event_entity_correctness_matrix)
-                print(annotated_file_scores.rt_entity_correctness_matrix)
-                print(reference_file.entities)
-                print(prediction_file.entities)
-                print(entity)
                 raise ValueError("All entities should be accounted for")
         relation_to_typed_correctness_matrix = {}
         # For whatever reason ty isn't a big fan of comprehensions with conditions,
@@ -210,7 +205,7 @@ def adjudicate_corpus_all_annnotators(
             ]
             reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
         else:
-            NotImplementedError(
+            raise NotImplementedError(
                 "Need to figure out mapping logic for file IDs for IAA etc"
             )
         logger.info(

@@ -126,7 +126,9 @@ def parse_entities(annotated_file: AnnotatedFile) -> Mapping[EventType, set[Enti
                     for entity in entities
                 }
             case _:
-                ValueError(f"Unsupported event type {event_type} for label {label}")
+                raise ValueError(
+                    f"Unsupported event type {event_type} for label {label}"
+                )
     return event_type_to_instances
 
 
@@ -137,7 +139,7 @@ def recoordinate_causal_relation(
     updated_arg1 = label_studio_id_to_entity.get(relation.arg1.label_studio_id)
     updated_arg2 = label_studio_id_to_entity.get(relation.arg2.label_studio_id)
     if updated_arg1 is None or updated_arg2 is None:
-        ValueError(
+        raise ValueError(
             f"Missing ID mapping information in {label_studio_id_to_entity.keys()} for one of {relation.arg1.label_studio_id} {relation.arg2.label_studio_id}"
         )
         return None
@@ -160,10 +162,12 @@ def recoordinate_causal_relations(
     for entity in updated_entities:
         label_studio_id = getattr(entity, "label_studio_id")
         if label_studio_id is None:
-            ValueError(f"Missing Label Studio ID for entity {entity}")
+            raise ValueError(f"Missing Label Studio ID for entity {entity}")
         stored = id_to_entity.get(label_studio_id)
         if stored is not None:
-            ValueError(f"Duplicate Label Studio IDs for entities {entity} and {stored}")
+            raise ValueError(
+                f"Duplicate Label Studio IDs for entities {entity} and {stored}"
+            )
         id_to_entity[str(label_studio_id)] = entity
     local_recoordinate = partial(recoordinate_causal_relation, id_to_entity)
     return list(filter(None, map(local_recoordinate, annotated_file.relations)))
@@ -176,7 +180,7 @@ def score_file(
     overlap: bool,
 ) -> AnnotatedFileScores:
     if prediction_file.file_id != reference_file.file_id:
-        ValueError(
+        raise ValueError(
             f"Mismatched file IDs, predicted {prediction_file.file_id} - reference {reference_file.file_id}"
         )
 
@@ -235,7 +239,7 @@ def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
     new_total = len(needs_updates)
     difference = initial_total - new_total
     if difference > 0:
-        ValueError(f"Set has {difference} non-unique entries.")
+        raise ValueError(f"Set has {difference} non-unique entries.")
         return set()
     return needs_updates
 
@@ -325,26 +329,3 @@ def update_corpus_scores(
         file_scores.cui_correctness_totals,
     )
     return corpus_scores
-
-
-# def warned_merge[T](arg1: set[T], arg2: set[T]) -> set[T]:
-#     original_total = len(arg1) + len(arg2)
-#     merged = arg1 & arg2
-#     if original_total > len(merged):
-#         ValueError(
-#             f"arg1 and arg2 have {original_total - len(merged)} non-unique entries"
-#         )
-#         return set()
-#     return merged
-
-
-# # different from the update based version
-# def merge_correctness_matrices[T](
-#     arg1: CorrectnessMatrix[T], arg2: CorrectnessMatrix[T]
-# ) -> CorrectnessMatrix[T]:
-#     return CorrectnessMatrix(
-#         true_negatives=warned_merge(arg1.true_negatives, arg2.true_negatives),
-#         true_positives=warned_merge(arg1.true_positives, arg2.true_positives),
-#         false_negatives=warned_merge(arg1.false_negatives, arg2.false_negatives),
-#         false_positives=warned_merge(arg1.false_positives, arg2.false_positives),
-#     )

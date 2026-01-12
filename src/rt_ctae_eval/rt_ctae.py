@@ -45,29 +45,29 @@ class EventType(Enum):
 class RTEntity(Entity):
     def __post_init__(self):
         if not cuis_are_radiation_treatment(set(self.cuis)):
-            ValueError(f"{self} is not a proper RT entity")
+            raise ValueError(f"{self} is not a proper RT entity")
 
 
 @dataclass(eq=True, frozen=True)
 class AdverseEventEntity(Entity):
     def __post_init__(self):
         if not cuis_are_adverse_event(set(self.cuis)):
-            ValueError(f"{self} is not a proper RT entity")
+            raise ValueError(f"{self} is not a proper RT entity")
 
 
 @dataclass(eq=True, frozen=True)
 class CausalRelation(Relation):
     def __post_init__(self):
         if not isinstance(self.arg1, RTEntity):
-            ValueError(
+            raise ValueError(
                 f"{self.arg1} is not a radiation treatment - convention is radiation treatment is the anchor"
             )
         if not isinstance(self.arg2, AdverseEventEntity):
-            ValueError(
+            raise ValueError(
                 f"{self.arg2} is not a adverse event - convention is adverse event is the anchor"
             )
         if not CausalRelation.validate_naranjo_label(self.label):
-            ValueError(f"Invalid causality label {self.label}")
+            raise ValueError(f"Invalid causality label {self.label}")
 
     @staticmethod
     def validate_naranjo_label(label: Any) -> bool:
