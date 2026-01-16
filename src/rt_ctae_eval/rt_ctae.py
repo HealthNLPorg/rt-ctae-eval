@@ -66,7 +66,11 @@ class CausalRelation(Relation):
             raise ValueError(
                 f"{self.arg2} is not a adverse event - convention is adverse event is the anchor"
             )
-        if not CausalRelation.validate_naranjo_label(self.label):
+        if len(self.label) != 1:
+            raise ValueError(
+                f"Only supporting single labels currently, not {self.label}"
+            )
+        if not CausalRelation.validate_naranjo_label(self.label[0]):
             raise ValueError(f"Invalid causality label {self.label}")
 
     @staticmethod
