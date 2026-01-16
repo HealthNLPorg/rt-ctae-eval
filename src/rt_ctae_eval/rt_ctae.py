@@ -5,9 +5,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 from lseval.correctness_matrix import CorrectnessMatrix, Correctness
 from typing import Any
+import logging
 
 from lseval.datatypes import Entity, Relation, DocTimeRel
 
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    level=logging.INFO,
+)
 RT_CUI = "C1522449"
 
 
@@ -45,25 +53,29 @@ class EventType(Enum):
 class RTEntity(Entity):
     def __post_init__(self):
         if not cuis_are_radiation_treatment(set(self.cuis)):
-            raise ValueError(f"{self} is not a proper RT entity")
+            # raise ValueError(f"{self} is not a proper RT entity")
+            logger.warning(f"{self} is not a proper RT entity")
 
 
 @dataclass(eq=True, frozen=True)
 class AdverseEventEntity(Entity):
     def __post_init__(self):
         if not cuis_are_adverse_event(set(self.cuis)):
-            raise ValueError(f"{self} is not a proper RT entity")
+            #         raise ValueError(f"{self} is not a proper adverse event entity")
+            logger.warning(f"{self} is not a proper adverse event entity")
 
 
 @dataclass(eq=True, frozen=True)
 class CausalRelation(Relation):
     def __post_init__(self):
         if not isinstance(self.arg1, RTEntity):
-            raise ValueError(
+            # raise ValueError(
+            logger.warning(
                 f"{self.arg1} is not a radiation treatment - convention is radiation treatment is the anchor"
             )
         if not isinstance(self.arg2, AdverseEventEntity):
-            raise ValueError(
+            # raise ValueError(
+            logger.warning(
                 f"{self.arg2} is not a adverse event - convention is adverse event is the anchor"
             )
         if len(self.label) != 1:
