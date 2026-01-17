@@ -17,3 +17,14 @@ uv run python -m rt_ctae_eval.adjudicate \
     --annotator_ids_to_ignore 1 \
     --output_dir ./adjudication_output
 ```
+## New Merged Evaluation and Adjudication Mixture
+```
+uv run python -m rt_ctae_eval.evaluate \
+    --corpus_json ~/Downloads/43_annotated.json \
+    --annotator_ids_tsv annotator_ids.tsv \
+    --overlap \
+    --annotator_ids_to_ignore 1 \
+    --output_dir adjudication_output \
+    --filter_agreements \
+    --adjudicate
+```
