@@ -17,7 +17,6 @@ from lseval.datatypes import (
     SingleAnnotatorCorpus,
     DocTimeRel,
     Entity,
-    AnnotatedFile,
     Relation,
 )
 from lseval.correctness_matrix import CorrectnessMatrix, score_totals, Correctness
@@ -100,12 +99,25 @@ def exclusion_ids(exlude_ids_str: str) -> Sequence[int]:
 
 
 def score_corpus(
+    prediction_annotator: str,
+    reference_annotator: str,
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
     exclusion_ids: Sequence[int],
     overlap: bool,
+    adjudicate: bool,
     per_document: bool,
+    filter_agreements: bool,
+    output_dir: str,
 ) -> None:
+    if adjudicate:
+        adjudication_json_path = os.path.join(
+            output_dir,
+            f"Adjudication_{prediction_annotator}_{reference_annotator}.json",
+        )
+        with open(adjudication_json_path, mode="w") as f:
+            f.write("[")
+
     def is_valid_file_id(file_id: int) -> bool:
         return len(exclusion_ids) == 0 or file_id not in exclusion_ids
 
@@ -124,9 +136,11 @@ def score_corpus(
         for annotated_file in reference_corpus.annotated_files
         if is_valid_file_id(annotated_file.file_id)
     }
-    for file_id in sorted(
+    file_ids = sorted(
         file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
-    ):
+    )
+    total_files = len(file_ids)
+    for idx, file_id in enumerate(file_ids):
         reference_file = file_id_to_reference_files.get(
             file_id,
             None,
@@ -141,11 +155,40 @@ def score_corpus(
                 f"Reference file {'present' if reference_file is not None else 'absent'}, Prediction file {'present' if prediction_file is not None else 'absent'}"
             )
             continue
+        reference_file_text = getattr(reference_file, "file_text", None)
+        prediction_file_text = getattr(reference_file, "file_text", None)
+        assert (
+            reference_file_text is not None
+            and reference_file_text == prediction_file_text
+        )
         annotated_file_scores = score_file(
             file_id=file_id,
             prediction_file=prediction_file,
             reference_file=reference_file,
             overlap=overlap,
+        )
+
+        entity_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Entity]],
+            [
+                annotated_file_scores.rt_entity_correctness_matrix,
+                annotated_file_scores.adverse_event_entity_correctness_matrix,
+            ],
+        )
+        relation_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Relation]],
+            [annotated_file_scores.causal_relation_correctness_matrix],
+        )
+        adjudication_file = build_adjudication_file(
+            file_id=file_id,
+            file_text=reference_file_text,
+            total_files=total_files,
+            reference_annotator=reference_annotator,
+            prediction_annotator=prediction_annotator,
+            # See if the types in lseval will work out just with Iterable etc
+            entity_correctness_matrices=entity_correctness_matrices,
+            relation_correctness_matrices=relation_correctness_matrices,
+            filter_agreements=filter_agreements,
         )
         annotated_corpus_scores = update_corpus_scores(
             annotated_corpus_scores, annotated_file_scores
@@ -153,10 +196,18 @@ def score_corpus(
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
+        if not (filter_agreements and adjudication_file is None):
+            with open(adjudication_json_path, mode="a") as f:
+                f.write(json.dumps(adjudication_file))
+                if idx < total_files - 1:
+                    f.write(",")
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
     print_dtr_by_category(annotated_corpus_scores)
+    if adjudicate:
+        with open(adjudication_json_path, mode="a") as f:
+            f.write("]")
 
 
 def print_cui_by_category(
@@ -325,109 +376,6 @@ def score_corpus_all_annnotators(
         )
 
 
-def adjudicate_corpus(
-    prediction_annotator: str,
-    reference_annotator: str,
-    prediction_corpus: SingleAnnotatorCorpus,
-    reference_corpus: SingleAnnotatorCorpus,
-    overlap: bool,
-    filter_agreements: bool,
-    output_dir: str,
-) -> None:
-    adjudication_json_path = os.path.join(
-        output_dir, f"Adjudication_{prediction_annotator}_{reference_annotator}.json"
-    )
-    with open(adjudication_json_path, mode="w") as f:
-        f.write("[")
-    file_id_to_prediction_files = {
-        annotated_file.file_id: annotated_file
-        for annotated_file in prediction_corpus.annotated_files
-    }
-    file_id_to_reference_files = {
-        annotated_file.file_id: annotated_file
-        for annotated_file in reference_corpus.annotated_files
-    }
-    file_ids_not_shared_across_annotators = (
-        file_id_to_prediction_files.keys() ^ file_id_to_reference_files.keys()
-    )
-    if len(file_ids_not_shared_across_annotators) > 5:
-        logger.warning(
-            "No shared annotations for %d files",
-            len(file_ids_not_shared_across_annotators),
-        )
-    elif len(file_ids_not_shared_across_annotators) > 1:
-        logger.warning(
-            "No shared annotations for file IDs: %s",
-            ", ".join(map(str, sorted(file_ids_not_shared_across_annotators))),
-        )
-    file_ids = sorted(
-        file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
-    )
-    total_files = len(file_ids)
-    for idx, file_id in enumerate(file_ids):
-        reference_file = file_id_to_reference_files.get(
-            file_id,
-            None,
-        )
-        prediction_file = file_id_to_prediction_files.get(
-            file_id,
-            None,
-        )
-        if reference_file is None or prediction_file is None:
-            logger.error(f"Missing annotations for {file_id}")
-            logger.error(
-                f"Reference file {'present' if reference_file is not None else 'absent'}, Prediction file {'present' if prediction_file is not None else 'absent'}"
-            )
-            continue
-
-        assert isinstance(reference_file, AnnotatedFile) and isinstance(
-            prediction_file, AnnotatedFile
-        )
-        reference_file_text = getattr(reference_file, "file_text", None)
-        prediction_file_text = getattr(reference_file, "file_text", None)
-        assert (
-            reference_file_text is not None
-            and reference_file_text == prediction_file_text
-        )
-        annotated_file_scores = score_file(
-            file_id=file_id,
-            prediction_file=prediction_file,
-            reference_file=reference_file,
-            overlap=overlap,
-        )
-
-        entity_correctness_matrices = cast(
-            Iterable[CorrectnessMatrix[Entity]],
-            [
-                annotated_file_scores.rt_entity_correctness_matrix,
-                annotated_file_scores.adverse_event_entity_correctness_matrix,
-            ],
-        )
-        relation_correctness_matrices = cast(
-            Iterable[CorrectnessMatrix[Relation]],
-            [annotated_file_scores.causal_relation_correctness_matrix],
-        )
-        adjudication_file = build_adjudication_file(
-            file_id=file_id,
-            file_text=reference_file_text,
-            total_files=total_files,
-            reference_annotator=reference_annotator,
-            prediction_annotator=prediction_annotator,
-            # See if the types in lseval will work out just with Iterable etc
-            entity_correctness_matrices=entity_correctness_matrices,
-            relation_correctness_matrices=relation_correctness_matrices,
-            filter_agreements=filter_agreements,
-        )
-        if not (filter_agreements and adjudication_file is None):
-            with open(adjudication_json_path, mode="a") as f:
-                f.write(json.dumps(adjudication_file))
-                if idx < total_files - 1:
-                    f.write(",")
-
-    with open(adjudication_json_path, mode="a") as f:
-        f.write("]")
-
-
 def score_corpus_annotator_pair(
     prediction_annotator: str,
     reference_annotator: str,
@@ -446,32 +394,32 @@ def score_corpus_annotator_pair(
         f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
     )
     score_corpus(
+        prediction_annotator=prediction_annotator,
+        reference_annotator=reference_annotator,
         prediction_corpus=prediction_corpus,
         reference_corpus=reference_corpus,
         exclusion_ids=exclusion_ids,
         overlap=overlap,
+        adjudicate=adjudicate,
         per_document=per_document,
+        filter_agreements=filter_agreements,
+        output_dir=output_dir,
     )
-    if adjudicate:
-        adjudicate_corpus(
-            prediction_annotator=prediction_annotator,
-            reference_annotator=reference_annotator,
-            prediction_corpus=prediction_corpus,
-            reference_corpus=reference_corpus,
-            overlap=overlap,
-            filter_agreements=filter_agreements,
-            output_dir=output_dir,
-        )
     if both_ways:
         logger.info(
             f"Prediction annotator {reference_annotator} reference annotator {prediction_annotator}"
         )
         score_corpus(
+            prediction_annotator=reference_annotator,
+            reference_annotator=prediction_annotator,
             prediction_corpus=reference_corpus,
             reference_corpus=prediction_corpus,
             exclusion_ids=exclusion_ids,
             overlap=overlap,
+            adjudicate=False,
             per_document=per_document,
+            filter_agreements=filter_agreements,
+            output_dir=output_dir,
         )
 
 
