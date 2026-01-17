@@ -1,8 +1,11 @@
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterable
 import argparse
+from typing import cast
 from typing import Mapping
 import json
+import os
 import logging
+from lseval.adjudication import build_adjudication_file
 from lseval.utils import organize_corpus_annotations_by_annotator
 from .utils import (
     update_corpus_scores,
@@ -10,7 +13,13 @@ from .utils import (
     update_correctness_matrix,
     merge_correctness_totals,
 )
-from lseval.datatypes import SingleAnnotatorCorpus, DocTimeRel, Entity
+from lseval.datatypes import (
+    SingleAnnotatorCorpus,
+    DocTimeRel,
+    Entity,
+    AnnotatedFile,
+    Relation,
+)
 from lseval.correctness_matrix import CorrectnessMatrix, score_totals, Correctness
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from itertools import combinations
@@ -51,6 +60,11 @@ parser.add_argument(
     + "to do with multiple matches is not well defined) but useful for debugging purposes.",
 )
 parser.add_argument(
+    "--filter_agreements",
+    action="store_true",
+    help="Don't include agreements, files with agreements aren't counted",
+)
+parser.add_argument(
     "--per_document",
     action="store_true",
     help="Print document level stores",
@@ -60,6 +74,13 @@ parser.add_argument(
     "--both_ways",
     action="store_true",
     help="If you want to evaluate a particular annotator pair in both orders, only difference will be order of precision and recall and supports",
+)
+
+parser.add_argument(
+    "--output_dir",
+    required=True,
+    type=str,
+    help="Exported Label Studio JSON.",
 )
 parser.add_argument("--exclude_ids", type=str, default=None)
 
@@ -78,12 +99,12 @@ def exclusion_ids(exlude_ids_str: str) -> Sequence[int]:
 def score_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
-    exlucsion_ids: Sequence[int],
+    exclusion_ids: Sequence[int],
     overlap: bool,
     per_document: bool,
 ) -> None:
     def is_valid_file_id(file_id: int) -> bool:
-        return len(exlucsion_ids) == 0 or file_id not in exlucsion_ids
+        return len(exclusion_ids) == 0 or file_id not in exclusion_ids
 
     annotated_corpus_scores = AnnotatedCorpusScores(
         rt_entity_correctness_matrix=CorrectnessMatrix(),
@@ -264,7 +285,10 @@ def score_corpus_all_annnotators(
     annotator_ids_to_ignore: list[int],
     exclude_ids: str | None,
     overlap: bool,
+    adjudicate: bool,
+    filter_agreements: bool,
     per_document: bool,
+    output_dir: str,
 ) -> None:
     with open(corpus_json, mode="rt") as f:
         raw_json_corpus = json.load(f)
@@ -291,7 +315,147 @@ def score_corpus_all_annnotators(
         score_corpus(
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
-            exlucsion_ids=file_exlusion_ids,
+            exclusion_ids=file_exlusion_ids,
+            overlap=overlap,
+            per_document=per_document,
+        )
+
+
+def adjudicate_corpus(
+    prediction_annotator: str,
+    reference_annotator: str,
+    prediction_corpus: SingleAnnotatorCorpus,
+    reference_corpus: SingleAnnotatorCorpus,
+    overlap: bool,
+    filter_agreements: bool,
+    output_dir: str,
+) -> None:
+    adjudication_json_path = os.path.join(
+        output_dir, f"Adjudication_{prediction_annotator}_{reference_annotator}.json"
+    )
+    with open(adjudication_json_path, mode="w") as f:
+        f.write("[")
+    file_id_to_prediction_files = {
+        annotated_file.file_id: annotated_file
+        for annotated_file in prediction_corpus.annotated_files
+    }
+    file_id_to_reference_files = {
+        annotated_file.file_id: annotated_file
+        for annotated_file in reference_corpus.annotated_files
+    }
+    file_ids_not_shared_across_annotators = (
+        file_id_to_prediction_files.keys() ^ file_id_to_reference_files.keys()
+    )
+    if len(file_ids_not_shared_across_annotators) > 5:
+        logger.warning(
+            "No shared annotations for %d files",
+            len(file_ids_not_shared_across_annotators),
+        )
+    elif len(file_ids_not_shared_across_annotators) > 1:
+        logger.warning(
+            "No shared annotations for file IDs: %s",
+            ", ".join(map(str, sorted(file_ids_not_shared_across_annotators))),
+        )
+    file_ids = sorted(
+        file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
+    )
+    total_files = len(file_ids)
+    for idx, file_id in enumerate(file_ids):
+        reference_file = file_id_to_reference_files.get(
+            file_id,
+            None,
+        )
+        prediction_file = file_id_to_prediction_files.get(
+            file_id,
+            None,
+        )
+        if reference_file is None or prediction_file is None:
+            logger.error(f"Missing annotations for {file_id}")
+            logger.error(
+                f"Reference file {'present' if reference_file is not None else 'absent'}, Prediction file {'present' if prediction_file is not None else 'absent'}"
+            )
+            continue
+
+        assert isinstance(reference_file, AnnotatedFile) and isinstance(
+            prediction_file, AnnotatedFile
+        )
+        reference_file_text = getattr(reference_file, "file_text", None)
+        prediction_file_text = getattr(reference_file, "file_text", None)
+        assert (
+            reference_file_text is not None
+            and reference_file_text == prediction_file_text
+        )
+        annotated_file_scores = score_file(
+            file_id=file_id,
+            prediction_file=prediction_file,
+            reference_file=reference_file,
+            overlap=overlap,
+        )
+
+        entity_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Entity]],
+            [
+                annotated_file_scores.rt_entity_correctness_matrix,
+                annotated_file_scores.adverse_event_entity_correctness_matrix,
+            ],
+        )
+        relation_correctness_matrices = cast(
+            Iterable[CorrectnessMatrix[Relation]],
+            [annotated_file_scores.causal_relation_correctness_matrix],
+        )
+        adjudication_file = build_adjudication_file(
+            file_id=file_id,
+            file_text=reference_file_text,
+            total_files=total_files,
+            reference_annotator=reference_annotator,
+            prediction_annotator=prediction_annotator,
+            # See if the types in lseval will work out just with Iterable etc
+            entity_correctness_matrices=entity_correctness_matrices,
+            relation_correctness_matrices=relation_correctness_matrices,
+            filter_agreements=filter_agreements,
+        )
+        if not (filter_agreements and adjudication_file is None):
+            with open(adjudication_json_path, mode="a") as f:
+                f.write(json.dumps(adjudication_file))
+                if idx < total_files - 1:
+                    f.write(",")
+
+    with open(adjudication_json_path, mode="a") as f:
+        f.write("]")
+
+
+def score_corpus_annotator_pair(
+    prediction_annotator: str,
+    reference_annotator: str,
+    annotator_to_single_annotator_corpus: dict[str, SingleAnnotatorCorpus],
+    exclusion_ids: Sequence[int],
+    overlap: bool,
+    adjudicate: bool,
+    filter_agreements: bool,
+    both_ways: bool,
+    per_document: bool,
+    output_dir: str,
+) -> None:
+    prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
+    reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
+    logger.info(
+        f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
+    )
+    score_corpus(
+        prediction_corpus=prediction_corpus,
+        reference_corpus=reference_corpus,
+        exclusion_ids=exclusion_ids,
+        overlap=overlap,
+        per_document=per_document,
+    )
+    if both_ways:
+        logger.info(
+            f"Prediction annotator {reference_annotator} reference annotator {prediction_annotator}"
+        )
+        score_corpus(
+            prediction_corpus=reference_corpus,
+            reference_corpus=prediction_corpus,
+            exclusion_ids=exclusion_ids,
             overlap=overlap,
             per_document=per_document,
         )
@@ -305,7 +469,10 @@ def main() -> None:
         annotator_ids_to_ignore=args.annotator_ids_to_ignore,
         exclude_ids=args.exclude_ids,
         overlap=args.overlap,
+        adjudicate=args.adjudicate,
+        filter_agreements=args.filter_agreements,
         per_document=args.per_document,
+        output_dir=args.output_dir,
     )
 
 
