@@ -60,6 +60,9 @@ parser.add_argument(
     + "to do with multiple matches is not well defined) but useful for debugging purposes.",
 )
 parser.add_argument(
+    "--adjudicate", action="store_true", help="Whether to do adjudication"
+)
+parser.add_argument(
     "--filter_agreements",
     action="store_true",
     help="Don't include agreements, files with agreements aren't counted",
@@ -286,6 +289,7 @@ def score_corpus_all_annnotators(
     exclude_ids: str | None,
     overlap: bool,
     adjudicate: bool,
+    both_ways: bool,
     filter_agreements: bool,
     per_document: bool,
     output_dir: str,
@@ -301,23 +305,23 @@ def score_corpus_all_annnotators(
         annotator_ids_to_ignore=annotator_ids_to_ignore,
     )
     if exclude_ids is not None:
-        file_exlusion_ids = exclusion_ids(exclude_ids)
+        file_exclusion_ids = exclusion_ids(exclude_ids)
     else:
-        file_exlusion_ids = []
+        file_exclusion_ids = []
     for prediction_annotator, reference_annotator in combinations(
         annotator_to_single_annotator_corpus.keys(), r=2
     ):
-        prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
-        reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
-        logger.info(
-            f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
-        )
-        score_corpus(
-            prediction_corpus=prediction_corpus,
-            reference_corpus=reference_corpus,
-            exclusion_ids=file_exlusion_ids,
+        score_corpus_annotator_pair(
+            prediction_annotator=prediction_annotator,
+            reference_annotator=reference_annotator,
+            annotator_to_single_annotator_corpus=annotator_to_single_annotator_corpus,
+            exclusion_ids=file_exclusion_ids,
             overlap=overlap,
+            adjudicate=adjudicate,
+            filter_agreements=filter_agreements,
+            both_ways=both_ways,
             per_document=per_document,
+            output_dir=output_dir,
         )
 
 
@@ -448,6 +452,16 @@ def score_corpus_annotator_pair(
         overlap=overlap,
         per_document=per_document,
     )
+    if adjudicate:
+        adjudicate_corpus(
+            prediction_annotator=prediction_annotator,
+            reference_annotator=reference_annotator,
+            prediction_corpus=prediction_corpus,
+            reference_corpus=reference_corpus,
+            overlap=overlap,
+            filter_agreements=filter_agreements,
+            output_dir=output_dir,
+        )
     if both_ways:
         logger.info(
             f"Prediction annotator {reference_annotator} reference annotator {prediction_annotator}"
@@ -471,6 +485,7 @@ def main() -> None:
         overlap=args.overlap,
         adjudicate=args.adjudicate,
         filter_agreements=args.filter_agreements,
+        both_ways=args.both_ways,
         per_document=args.per_document,
         output_dir=args.output_dir,
     )
