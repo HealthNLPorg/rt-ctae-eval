@@ -59,6 +59,12 @@ parser.add_argument(
     + "to do with multiple matches is not well defined) but useful for debugging purposes.",
 )
 
+parser.add_argument(
+    "--filter_agreements",
+    action="store_true",
+    help="Don't include agreements, files with agreements aren't counted",
+)
+
 
 def adjudicate_corpus(
     prediction_annotator: str,
@@ -66,6 +72,7 @@ def adjudicate_corpus(
     prediction_corpus: SingleAnnotatorCorpus,
     reference_corpus: SingleAnnotatorCorpus,
     overlap: bool,
+    filter_agreements: bool,
     output_dir: str,
 ) -> None:
     adjudication_json_path = os.path.join(
@@ -150,12 +157,13 @@ def adjudicate_corpus(
             # See if the types in lseval will work out just with Iterable etc
             entity_correctness_matrices=entity_correctness_matrices,
             relation_correctness_matrices=relation_correctness_matrices,
+            filter_agreements=filter_agreements,
         )
-
-        with open(adjudication_json_path, mode="a") as f:
-            f.write(json.dumps(adjudication_file))
-            if idx < total_files - 1:
-                f.write(",")
+        if not (filter_agreements and adjudication_file is None):
+            with open(adjudication_json_path, mode="a") as f:
+                f.write(json.dumps(adjudication_file))
+                if idx < total_files - 1:
+                    f.write(",")
 
     with open(adjudication_json_path, mode="a") as f:
         f.write("]")
@@ -167,6 +175,7 @@ def adjudicate_corpus_all_annnotators(
     annotator_ids_tsv: str,
     annotator_to_file_ids_tsv: str | None,
     overlap: bool,
+    filter_agreements: bool,
     annotator_ids_to_ignore: list[int],
 ) -> None:
     with open(corpus_json, mode="rt") as f:
@@ -207,6 +216,7 @@ def adjudicate_corpus_all_annnotators(
             prediction_corpus=prediction_corpus,
             reference_corpus=reference_corpus,
             overlap=overlap,
+            filter_agreements=filter_agreements,
             output_dir=output_dir,
         )
 
@@ -219,6 +229,7 @@ def main() -> None:
         annotator_ids_tsv=args.annotator_ids_tsv,
         annotator_to_file_ids_tsv=args.annotator_to_file_ids_tsv,
         overlap=args.overlap,
+        filter_agreements=args.filter_agreements,
         annotator_ids_to_ignore=args.annotator_ids_to_ignore,
     )
 
