@@ -13,7 +13,7 @@ from .utils import (
 from lseval.datatypes import SingleAnnotatorCorpus, DocTimeRel, Entity
 from lseval.correctness_matrix import CorrectnessMatrix, score_totals, Correctness
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
-from itertools import permutations
+from itertools import combinations
 from functools import reduce
 from tabulate import tabulate
 from operator import itemgetter
@@ -56,6 +56,11 @@ parser.add_argument(
     help="Print document level stores",
 )
 
+parser.add_argument(
+    "--both_ways",
+    action="store_true",
+    help="If you want to evaluate a particular annotator pair in both orders, only difference will be order of precision and recall and supports",
+)
 parser.add_argument("--exclude_ids", type=str, default=None)
 
 
@@ -275,7 +280,7 @@ def score_corpus_all_annnotators(
         file_exlusion_ids = exclusion_ids(exclude_ids)
     else:
         file_exlusion_ids = []
-    for prediction_annotator, reference_annotator in permutations(
+    for prediction_annotator, reference_annotator in combinations(
         annotator_to_single_annotator_corpus.keys(), r=2
     ):
         prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
