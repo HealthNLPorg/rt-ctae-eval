@@ -173,6 +173,7 @@ def score_corpus(
             [
                 annotated_file_scores.rt_entity_correctness_matrix,
                 annotated_file_scores.adverse_event_entity_correctness_matrix,
+                *annotated_file_scores.dtr_correctness_matrices.values(),
             ],
         )
         relation_correctness_matrices = cast(
