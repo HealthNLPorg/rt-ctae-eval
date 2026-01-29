@@ -1,13 +1,13 @@
 from operator import attrgetter
-from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel
+from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel, overlap_match
 from functools import partial
-from lseval.correctness_matrix import CorrectnessMatrix
+from lseval.correctness_matrix import CorrectnessMatrix, Correctness
 from lseval.score import (
     build_entity_correctness_matrix,
     build_relation_correctness_matrix,
 )
 import logging
-from typing import Mapping
+from typing import Mapping, cast
 from itertools import groupby, chain
 from collections.abc import Iterable
 from .rt_ctae import (
@@ -132,6 +132,86 @@ def parse_entities(annotated_file: AnnotatedFile) -> Mapping[EventType, set[Enti
     return event_type_to_instances
 
 
+def entity_match(overlap: bool, entity1: Entity, entity2: Entity) -> bool:
+    # naive bc type sensitivity should be handled elsewhere
+    return (
+        overlap_match(entity1.span, entity2.span)
+        if overlap
+        else entity1.span == entity2.span
+    )
+
+
+def recoordinate_relation_argument(
+    entity: Entity, correctness_matrix: CorrectnessMatrix[Entity], overlap: bool
+) -> Entity:
+    local_entity_match = partial(entity_match, overlap, entity)
+    true_positive_possibility = next(
+        filter(local_entity_match, correctness_matrix.true_positives), None
+    )
+    if true_positive_possibility is not None:
+        return true_positive_possibility
+    false_positive_possibility = next(
+        filter(local_entity_match, correctness_matrix.false_positives), None
+    )
+    if false_positive_possibility is not None:
+        return false_positive_possibility
+    raise ValueError(
+        "No options for either relation argument represented in correctness matrix."
+    )
+
+
+def recoordinate_false_negative_relations(
+    false_negative_relations: Iterable[Relation],
+    entity_to_correctness_matrix: Mapping[Entity, CorrectnessMatrix[Entity]],
+    overlap: bool,
+) -> Iterable[Relation]:
+    for relation in false_negative_relations:
+        arg1_correctness_matrix = entity_to_correctness_matrix[relation.arg1]
+        arg1_correctness = arg1_correctness_matrix.get_correctness(relation.arg1)
+        arg2_correctness_matrix = entity_to_correctness_matrix[relation.arg2]
+        arg2_correctness = arg2_correctness_matrix.get_correctness(relation.arg2)
+        match arg1_correctness, arg2_correctness:
+            case Correctness.FALSE_NEGATIVE, Correctness.FALSE_NEGATIVE:
+                # Everything is all set
+                yield relation
+            case Correctness.FALSE_NEGATIVE, Correctness.NA:
+                yield CausalRelation(
+                    file_id=relation.file_id,
+                    arg1=relation.arg1,
+                    arg2=recoordinate_relation_argument(
+                        relation.arg2, arg2_correctness_matrix, overlap
+                    ),
+                    label=relation.label,
+                    source_annotations=relation.source_annotations,
+                )
+            case Correctness.NA, Correctness.FALSE_NEGATIVE:
+                yield CausalRelation(
+                    file_id=relation.file_id,
+                    arg1=recoordinate_relation_argument(
+                        relation.arg1, arg1_correctness_matrix, overlap
+                    ),
+                    arg2=relation.arg2,
+                    label=relation.label,
+                    source_annotations=relation.source_annotations,
+                )
+            case Correctness.NA, Correctness.NA:
+                yield CausalRelation(
+                    file_id=relation.file_id,
+                    arg1=recoordinate_relation_argument(
+                        relation.arg1, arg1_correctness_matrix, overlap
+                    ),
+                    arg2=recoordinate_relation_argument(
+                        relation.arg2, arg2_correctness_matrix, overlap
+                    ),
+                    label=relation.label,
+                    source_annotations=relation.source_annotations,
+                )
+            case _:
+                raise ValueError(
+                    "Arguments to a false negative (reference) relations are definitionally either false negatives (reference) themselves, or are true/false positive but are represented in the correctness matrix by a predicted entity"
+                )
+
+
 def recoordinate_causal_relation(
     label_studio_id_to_entity: Mapping[str, Entity],
     relation: Relation,
@@ -186,37 +266,72 @@ def score_file(
 
     event_type_to_prediction_entities = parse_entities(prediction_file)
     event_type_to_reference_entities = parse_entities(reference_file)
+    rt_entity_correctness_matrix = build_entity_correctness_matrix(
+        predicted_entities=event_type_to_prediction_entities.get(
+            EventType.RTEntity, set()
+        ),
+        reference_entities=event_type_to_reference_entities.get(
+            EventType.RTEntity, set()
+        ),
+        overlap=overlap,
+    )
+    adverse_event_entity_correctness_matrix = build_entity_correctness_matrix(
+        predicted_entities=event_type_to_prediction_entities.get(
+            EventType.AdverseEventEntity, set()
+        ),
+        reference_entities=event_type_to_reference_entities.get(
+            EventType.AdverseEventEntity, set()
+        ),
+        overlap=overlap,
+    )
+    entity_to_correctness_matrix = {}
+    for event_type, entities in chain(
+        event_type_to_prediction_entities.items(),
+        event_type_to_reference_entities.items(),
+    ):
+        match event_type:
+            case EventType.RTEntity:
+                for entity in entities:
+                    entity_to_correctness_matrix[entity] = rt_entity_correctness_matrix
+            case EventType.AdverseEventEntity:
+                for entity in entities:
+                    entity_to_correctness_matrix[entity] = (
+                        adverse_event_entity_correctness_matrix
+                    )
+    raw_relation_correctness_matrix = build_relation_correctness_matrix(
+        predicted_relations=recoordinate_causal_relations(
+            prediction_file,
+            chain.from_iterable(event_type_to_prediction_entities.values()),
+        ),
+        reference_relations=recoordinate_causal_relations(
+            reference_file,
+            chain.from_iterable(event_type_to_reference_entities.values()),
+        ),
+        overlap=overlap,
+    )
+    causal_relation_correctness_matrix = CorrectnessMatrix(
+        true_positives=cast(
+            set[CausalRelation], raw_relation_correctness_matrix.true_positives
+        ),
+        false_positives=cast(
+            set[CausalRelation], raw_relation_correctness_matrix.false_positives
+        ),
+        false_negatives=cast(
+            set[CausalRelation],
+            set(
+                recoordinate_false_negative_relations(
+                    false_negative_relations=raw_relation_correctness_matrix.false_negatives,
+                    entity_to_correctness_matrix=entity_to_correctness_matrix,
+                    overlap=overlap,
+                )
+            ),
+        ),
+    )
     return AnnotatedFileScores(
         file_id=file_id,
-        rt_entity_correctness_matrix=build_entity_correctness_matrix(
-            predicted_entities=event_type_to_prediction_entities.get(
-                EventType.RTEntity, set()
-            ),
-            reference_entities=event_type_to_reference_entities.get(
-                EventType.RTEntity, set()
-            ),
-            overlap=overlap,
-        ),
-        adverse_event_entity_correctness_matrix=build_entity_correctness_matrix(
-            predicted_entities=event_type_to_prediction_entities.get(
-                EventType.AdverseEventEntity, set()
-            ),
-            reference_entities=event_type_to_reference_entities.get(
-                EventType.AdverseEventEntity, set()
-            ),
-            overlap=overlap,
-        ),
-        causal_relation_correctness_matrix=build_relation_correctness_matrix(
-            predicted_relations=recoordinate_causal_relations(
-                prediction_file,
-                chain.from_iterable(event_type_to_prediction_entities.values()),
-            ),
-            reference_relations=recoordinate_causal_relations(
-                reference_file,
-                chain.from_iterable(event_type_to_reference_entities.values()),
-            ),
-            overlap=overlap,
-        ),
+        rt_entity_correctness_matrix=rt_entity_correctness_matrix,
+        adverse_event_entity_correctness_matrix=adverse_event_entity_correctness_matrix,
+        causal_relation_correctness_matrix=causal_relation_correctness_matrix,
         dtr_correctness_matrices=build_category_correctness_matrices(
             predicted_category_entities=parse_dtr_entities(prediction_file),
             reference_category_entities=parse_dtr_entities(reference_file),

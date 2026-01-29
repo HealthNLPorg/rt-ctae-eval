@@ -53,30 +53,31 @@ class EventType(Enum):
 class RTEntity(Entity):
     def __post_init__(self):
         if not cuis_are_radiation_treatment(set(self.cuis)):
-            # raise ValueError(f"{self} is not a proper RT entity")
-            logger.warning(f"{self} is not a proper RT entity")
+            logger.warning("%s is not a proper RT entity", self.label_studio_id)
 
 
 @dataclass(eq=True, frozen=True)
 class AdverseEventEntity(Entity):
     def __post_init__(self):
         if not cuis_are_adverse_event(set(self.cuis)):
-            #         raise ValueError(f"{self} is not a proper adverse event entity")
-            logger.warning(f"{self} is not a proper adverse event entity")
+            logger.warning(
+                "%s is not a proper adverse event entity", self.label_studio_id
+            )
 
 
 @dataclass(eq=True, frozen=True)
 class CausalRelation(Relation):
     def __post_init__(self):
         if not isinstance(self.arg1, RTEntity):
-            # raise ValueError(
             logger.warning(
-                f"{self.arg1} is not a radiation treatment - convention is radiation treatment is the anchor"
+                "%s is not a radiation treatment - convention is radiation treatment is the anchor",
+                self.arg1.label_studio_id,
             )
         if not isinstance(self.arg2, AdverseEventEntity):
             # raise ValueError(
             logger.warning(
-                f"{self.arg2} is not a adverse event - convention is adverse event is the anchor"
+                "%s is not a adverse event - convention is adverse event is the anchor",
+                self.arg2.label_studio_id,
             )
         if len(self.label) != 1:
             raise ValueError(

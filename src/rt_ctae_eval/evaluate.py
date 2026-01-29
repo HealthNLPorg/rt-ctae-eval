@@ -32,7 +32,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
-    level=logging.INFO,
+    # level=logging.INFO,
+    level=logging.ERROR,
 )
 parser = argparse.ArgumentParser(description="")
 parser.add_argument(
@@ -111,12 +112,15 @@ def score_corpus(
     output_dir: str,
 ) -> None:
     if adjudicate:
+        total_instances = 0
+        tmp_adjudication_json_path = os.path.join(
+            output_dir,
+            f".tmp_Adjudication_{prediction_annotator}_Prediction_{reference_annotator}_Reference.jsonl",
+        )
         adjudication_json_path = os.path.join(
             output_dir,
-            f"Adjudication_{prediction_annotator}_{reference_annotator}.json",
+            f"Adjudication_{prediction_annotator}_Prediction_{reference_annotator}_Reference.json",
         )
-        with open(adjudication_json_path, mode="w") as f:
-            f.write("[")
 
     def is_valid_file_id(file_id: int) -> bool:
         return len(exclusion_ids) == 0 or file_id not in exclusion_ids
@@ -137,10 +141,10 @@ def score_corpus(
         if is_valid_file_id(annotated_file.file_id)
     }
     file_ids = sorted(
-        file_id_to_prediction_files.keys() & file_id_to_reference_files.keys()
+        file_id_to_prediction_files.keys() | file_id_to_reference_files.keys()
     )
     total_files = len(file_ids)
-    for idx, file_id in enumerate(file_ids):
+    for file_id in file_ids:
         reference_file = file_id_to_reference_files.get(
             file_id,
             None,
@@ -152,7 +156,7 @@ def score_corpus(
         if reference_file is None or prediction_file is None:
             logger.error(f"Missing annotations for {file_id}")
             logger.error(
-                f"Reference file {'present' if reference_file is not None else 'absent'}, Prediction file {'present' if prediction_file is not None else 'absent'}"
+                f"Reference/{reference_annotator} file {'present' if reference_file is not None else 'absent'}, Prediction/{prediction_annotator}/file {'present' if prediction_file is not None else 'absent'}"
             )
             continue
         reference_file_text = getattr(reference_file, "file_text", None)
@@ -176,6 +180,7 @@ def score_corpus(
                 *annotated_file_scores.dtr_correctness_matrices.values(),
             ],
         )
+
         relation_correctness_matrices = cast(
             Iterable[CorrectnessMatrix[Relation]],
             [annotated_file_scores.causal_relation_correctness_matrix],
@@ -191,24 +196,33 @@ def score_corpus(
             relation_correctness_matrices=relation_correctness_matrices,
             filter_agreements=filter_agreements,
         )
+        if adjudicate and not (filter_agreements and adjudication_file is None):
+            total_instances += 1
+            with open(tmp_adjudication_json_path, mode="a", encoding="utf-8") as f:
+                f.write(json.dumps(adjudication_file) + "\n")
         annotated_corpus_scores = update_corpus_scores(
             annotated_corpus_scores, annotated_file_scores
         )
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
-        if not (filter_agreements and adjudication_file is None):
-            with open(adjudication_json_path, mode="a") as f:
-                f.write(json.dumps(adjudication_file))
-                if idx < total_files - 1:
-                    f.write(",")
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
     print_dtr_by_category(annotated_corpus_scores)
     if adjudicate:
-        with open(adjudication_json_path, mode="a") as f:
-            f.write("]")
+        with (
+            open(adjudication_json_path, mode="w", encoding="UTF-8") as wf,
+            open(tmp_adjudication_json_path, mode="r", encoding="UTF-8") as rf,
+        ):
+            wf.write("[")
+            for idx, line in enumerate(rf):
+                wf.write(line.strip())
+                if idx < total_instances - 1:
+                    wf.write(",")
+            wf.write("]")
+        if os.path.exists(tmp_adjudication_json_path):
+            os.remove(tmp_adjudication_json_path)
 
 
 def print_cui_by_category(
