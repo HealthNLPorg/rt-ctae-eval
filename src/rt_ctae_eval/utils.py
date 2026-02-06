@@ -1,3 +1,4 @@
+from more_itertools import map_reduce
 import operator
 from operator import attrgetter
 from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel, overlap_match
@@ -9,8 +10,8 @@ from lseval.score import (
 )
 import logging
 from typing import Mapping, cast
-from itertools import groupby, chain
-from collections.abc import Iterable, Set, Collection
+from itertools import chain
+from collections.abc import Iterable, Set, Collection, Container
 from .rt_ctae import (
     AnnotatedFileScores,
     AnnotatedCorpusScores,
@@ -68,7 +69,7 @@ def to_adverse_event_entity(entity: Entity, file_id: int) -> AdverseEventEntity:
 
 def parse_dtr_entities(
     annotated_file: AnnotatedFile,
-) -> Mapping[DocTimeRel, set[Entity]]:
+) -> Mapping[DocTimeRel, Collection[Entity]]:
     updated_mapping = {}
     for entity in annotated_file.entities:
         dtr = entity.dtr
@@ -98,7 +99,7 @@ def build_category_correctness_matrices[T](
 
 def parse_cui_entities(
     annotated_file: AnnotatedFile,
-) -> Mapping[str, set[Entity]]:
+) -> Mapping[str, Collection[Entity]]:
     cui_to_entity = {}
     for entity in annotated_file.entities:
         for cui in entity.cuis:
@@ -109,12 +110,12 @@ def parse_cui_entities(
     return cui_to_entity
 
 
-def parse_entities(annotated_file: AnnotatedFile) -> Mapping[EventType, set[Entity]]:
+def parse_entities(
+    annotated_file: AnnotatedFile,
+) -> Mapping[EventType, Collection[Entity]]:
     get_label = attrgetter("label")
     event_type_to_instances = {}
-    for label, entities in groupby(
-        sorted(annotated_file.entities, key=get_label), key=get_label
-    ):
+    for label, entities in map_reduce(annotated_file.entities, keyfunc=get_label):
         event_type = EventType(label)
         match event_type:
             case EventType.RTEntity:
