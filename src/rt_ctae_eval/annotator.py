@@ -1,10 +1,10 @@
 import polars as pl
-from collections.abc import Mapping
+from collections.abc import Mapping, Container
 
 
 def get_annotator_to_file_ids_mappping(
     annotator_to_file_ids_tsv: str,
-) -> Mapping[str, set[int]]:
+) -> Mapping[str, Container[int]]:
     annotator_to_file_ids_df = pl.read_csv(annotator_to_file_ids_tsv, separator="\t")
     annotator_to_unique_file_ids = {}
     for annnotator_name, clustered_file_ids in zip(
@@ -17,7 +17,7 @@ def get_annotator_to_file_ids_mappping(
 
 
 def get_id_to_annotator_mappping(
-    annotator_ids_tsv: str, annotator_ids_to_ignore: list[int]
+    annotator_ids_tsv: str, annotator_ids_to_ignore: Container[int]
 ) -> Mapping[int, str]:
     annotator_with_ids_df = pl.read_csv(annotator_ids_tsv, separator="\t")
     id_to_unique_annotator = {}

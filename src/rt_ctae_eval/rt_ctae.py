@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Collection
 from dataclasses import dataclass, field
 
 
@@ -19,11 +19,11 @@ logging.basicConfig(
 RT_CUI = "C1522449"
 
 
-def cuis_are_radiation_treatment(cuis: set[str]) -> bool:
+def cuis_are_radiation_treatment(cuis: Collection[str]) -> bool:
     return RT_CUI in cuis and len(cuis) == 1
 
 
-def cuis_are_adverse_event(cuis: set[str]) -> bool:
+def cuis_are_adverse_event(cuis: Collection[str]) -> bool:
     return RT_CUI not in cuis
 
 
@@ -52,14 +52,14 @@ class EventType(Enum):
 @dataclass(eq=True, frozen=True)
 class RTEntity(Entity):
     def __post_init__(self):
-        if not cuis_are_radiation_treatment(set(self.cuis)):
+        if not cuis_are_radiation_treatment(self.cuis):
             logger.warning("%s is not a proper RT entity", self.label_studio_id)
 
 
 @dataclass(eq=True, frozen=True)
 class AdverseEventEntity(Entity):
     def __post_init__(self):
-        if not cuis_are_adverse_event(set(self.cuis)):
+        if not cuis_are_adverse_event(self.cuis):
             logger.warning(
                 "%s is not a proper adverse event entity", self.label_studio_id
             )
@@ -74,7 +74,6 @@ class CausalRelation(Relation):
                 self.arg1.label_studio_id,
             )
         if not isinstance(self.arg2, AdverseEventEntity):
-            # raise ValueError(
             logger.warning(
                 "%s is not a adverse event - convention is adverse event is the anchor",
                 self.arg2.label_studio_id,
@@ -83,8 +82,8 @@ class CausalRelation(Relation):
             raise ValueError(
                 f"Only supporting single labels currently, not {self.label}"
             )
-        if not CausalRelation.validate_naranjo_label(self.label[0]):
-            raise ValueError(f"Invalid causality label {self.label}")
+        if not all(map(CausalRelation.validate_naranjo_label, self.label)):
+            raise ValueError(f"Invalid causality label/s {self.label}")
 
     @staticmethod
     def validate_naranjo_label(label: Any) -> bool:

@@ -1,3 +1,4 @@
+import operator
 from operator import attrgetter
 from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel, overlap_match
 from functools import partial
@@ -9,7 +10,7 @@ from lseval.score import (
 import logging
 from typing import Mapping, cast
 from itertools import groupby, chain
-from collections.abc import Iterable
+from collections.abc import Iterable, Set, Collection
 from .rt_ctae import (
     AnnotatedFileScores,
     AnnotatedCorpusScores,
@@ -79,8 +80,8 @@ def parse_dtr_entities(
 
 
 def build_category_correctness_matrices[T](
-    predicted_category_entities: Mapping[T, set[Entity]],
-    reference_category_entities: Mapping[T, set[Entity]],
+    predicted_category_entities: Mapping[T, Collection[Entity]],
+    reference_category_entities: Mapping[T, Collection[Entity]],
     overlap: bool,
 ) -> Mapping[T, CorrectnessMatrix[Entity]]:
     category_correctness_matrices = {}
@@ -237,7 +238,7 @@ def recoordinate_causal_relation(
 
 def recoordinate_causal_relations(
     annotated_file: AnnotatedFile, updated_entities: Iterable[Entity]
-) -> list[Relation]:
+) -> Set[Relation]:
     id_to_entity = {}
     for entity in updated_entities:
         label_studio_id = getattr(entity, "label_studio_id")
@@ -250,7 +251,9 @@ def recoordinate_causal_relations(
             )
         id_to_entity[str(label_studio_id)] = entity
     local_recoordinate = partial(recoordinate_causal_relation, id_to_entity)
-    return list(filter(None, map(local_recoordinate, annotated_file.relations)))
+    return set(
+        filter(operator.is_not_none, map(local_recoordinate, annotated_file.relations))
+    )
 
 
 def score_file(
@@ -355,7 +358,6 @@ def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
     difference = initial_total - new_total
     if difference > 0:
         raise ValueError(f"Set has {difference} non-unique entries.")
-        return set()
     return needs_updates
 
 
@@ -363,16 +365,16 @@ def update_correctness_matrix[T](
     needs_updates: CorrectnessMatrix[T], has_updates: CorrectnessMatrix[T]
 ) -> CorrectnessMatrix[T]:
     needs_updates.true_negatives = warned_set_update(
-        needs_updates.true_negatives, has_updates.true_negatives
+        set(needs_updates.true_negatives), set(has_updates.true_negatives)
     )
     needs_updates.true_positives = warned_set_update(
-        needs_updates.true_positives, has_updates.true_positives
+        set(needs_updates.true_positives), set(has_updates.true_positives)
     )
     needs_updates.false_negatives = warned_set_update(
-        needs_updates.false_negatives, has_updates.false_negatives
+        set(needs_updates.false_negatives), set(has_updates.false_negatives)
     )
     needs_updates.false_positives = warned_set_update(
-        needs_updates.false_positives, has_updates.false_positives
+        set(needs_updates.false_positives), set(has_updates.false_positives)
     )
     return needs_updates
 

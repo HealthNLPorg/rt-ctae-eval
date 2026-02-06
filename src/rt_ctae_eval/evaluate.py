@@ -1,7 +1,6 @@
-from collections.abc import Sequence, Iterable
+from collections.abc import Sequence, Iterable, Mapping
 import argparse
 from typing import cast
-from typing import Mapping
 import json
 import os
 import logging
@@ -394,7 +393,7 @@ def score_corpus_all_annnotators(
 def score_corpus_annotator_pair(
     prediction_annotator: str,
     reference_annotator: str,
-    annotator_to_single_annotator_corpus: dict[str, SingleAnnotatorCorpus],
+    annotator_to_single_annotator_corpus: Mapping[str, SingleAnnotatorCorpus],
     exclusion_ids: Sequence[int],
     overlap: bool,
     adjudicate: bool,
