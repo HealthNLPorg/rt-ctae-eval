@@ -1,6 +1,5 @@
-from more_itertools import map_reduce
+from collections import defaultdict
 import operator
-from operator import attrgetter
 from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel, overlap_match
 from functools import partial
 from lseval.correctness_matrix import CorrectnessMatrix, Correctness
@@ -11,7 +10,7 @@ from lseval.score import (
 import logging
 from typing import Mapping, cast
 from itertools import chain
-from collections.abc import Iterable, Set, Collection, Container
+from collections.abc import Iterable, Set, Collection
 from .rt_ctae import (
     AnnotatedFileScores,
     AnnotatedCorpusScores,
@@ -113,20 +112,19 @@ def parse_cui_entities(
 def parse_entities(
     annotated_file: AnnotatedFile,
 ) -> Mapping[EventType, Collection[Entity]]:
-    get_label = attrgetter("label")
-    event_type_to_instances = {}
-    for label, entities in map_reduce(annotated_file.entities, keyfunc=get_label):
+    event_type_to_instances = defaultdict(set)
+    for entity in annotated_file.entities:
+        label = getattr(entity, "label")
         event_type = EventType(label)
         match event_type:
             case EventType.RTEntity:
-                event_type_to_instances[EventType.RTEntity] = {
-                    to_rt_entity(entity, annotated_file.file_id) for entity in entities
-                }
+                event_type_to_instances[EventType.RTEntity].add(
+                    to_rt_entity(entity, annotated_file.file_id)
+                )
             case EventType.AdverseEventEntity:
-                event_type_to_instances[EventType.AdverseEventEntity] = {
+                event_type_to_instances[EventType.AdverseEventEntity].add(
                     to_adverse_event_entity(entity, annotated_file.file_id)
-                    for entity in entities
-                }
+                )
             case _:
                 raise ValueError(
                     f"Unsupported event type {event_type} for label {label}"
