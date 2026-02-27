@@ -111,11 +111,7 @@ def score_corpus(
     output_dir: str,
 ) -> None:
     if adjudicate:
-        total_instances = 0
-        tmp_adjudication_json_path = os.path.join(
-            output_dir,
-            f".tmp_Adjudication_{prediction_annotator}_Prediction_{reference_annotator}_Reference.jsonl",
-        )
+        adjudication_instances = []
         adjudication_json_path = os.path.join(
             output_dir,
             f"Adjudication_{prediction_annotator}_Prediction_{reference_annotator}_Reference.json",
@@ -196,9 +192,7 @@ def score_corpus(
             filter_agreements=filter_agreements,
         )
         if adjudicate and not (filter_agreements and adjudication_file is None):
-            total_instances += 1
-            with open(tmp_adjudication_json_path, mode="a", encoding="utf-8") as f:
-                f.write(json.dumps(adjudication_file) + "\n")
+            adjudication_instances.append(adjudication_file)
         annotated_corpus_scores = update_corpus_scores(
             annotated_corpus_scores, annotated_file_scores
         )
@@ -209,19 +203,8 @@ def score_corpus(
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
     print_dtr_by_category(annotated_corpus_scores)
-    if adjudicate:
-        with (
-            open(adjudication_json_path, mode="w", encoding="UTF-8") as wf,
-            open(tmp_adjudication_json_path, mode="r", encoding="UTF-8") as rf,
-        ):
-            wf.write("[")
-            for idx, line in enumerate(rf):
-                wf.write(line.strip())
-                if idx < total_instances - 1:
-                    wf.write(",")
-            wf.write("]")
-        if os.path.exists(tmp_adjudication_json_path):
-            os.remove(tmp_adjudication_json_path)
+    with open(adjudication_json_path, mode="w", encoding="utf-8") as f:
+        json.dump(adjudication_instances, f)
 
 
 def print_cui_by_category(
