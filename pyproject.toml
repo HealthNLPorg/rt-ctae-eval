@@ -10,11 +10,10 @@ dependencies = [
              "ipython",
              "polars",
              "more-itertools",
-             "lseval",
+             "lseval@git+https://github.com/HealthNLPorg/lseval.git",
              "tabulate"
 ]
-[tool.uv.sources]
-lseval = { path = "/Users/etg/Repos/lseval", editable = true }
+
 [build-system]
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
