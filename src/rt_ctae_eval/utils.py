@@ -1,25 +1,28 @@
-from collections import defaultdict
+from __future__ import annotations
+
+import logging
 import operator
-from lseval.datatypes import Entity, Relation, AnnotatedFile, DocTimeRel, overlap_match
+from collections import defaultdict
+from collections.abc import Collection, Iterable, Set
 from functools import partial
-from lseval.correctness_matrix import CorrectnessMatrix, Correctness
+from itertools import chain
+from typing import Mapping, cast
+
+from lseval.correctness_matrix import Correctness, CorrectnessMatrix
+from lseval.datatypes import AnnotatedFile, DocTimeRel, Entity, Relation, overlap_match
 from lseval.score import (
     build_entity_correctness_matrix,
     build_relation_correctness_matrix,
 )
-import logging
-from typing import Mapping, cast
-from itertools import chain
-from collections.abc import Iterable, Set, Collection
+
 from .rt_ctae import (
-    AnnotatedFileScores,
+    AdverseEventEntity,
     AnnotatedCorpusScores,
+    AnnotatedFileScores,
+    CausalRelation,
     EventType,
     RTEntity,
-    AdverseEventEntity,
-    CausalRelation,
 )
-
 
 logger = logging.getLogger(__name__)
 

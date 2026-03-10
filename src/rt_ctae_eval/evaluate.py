@@ -1,30 +1,34 @@
-from collections.abc import Sequence, Iterable, Mapping
+from __future__ import annotations
+
 import argparse
-from typing import cast
 import json
-import os
 import logging
+import os
+from collections.abc import Iterable, Mapping, Sequence
+from functools import reduce
+from itertools import combinations
+from operator import itemgetter
+from typing import cast
+
 from lseval.adjudication import build_adjudication_file
-from lseval.utils import organize_corpus_annotations_by_annotator
-from .utils import (
-    update_corpus_scores,
-    score_file,
-    update_correctness_matrix,
-    merge_correctness_totals,
-)
+from lseval.correctness_matrix import Correctness, CorrectnessMatrix, score_totals
 from lseval.datatypes import (
-    SingleAnnotatorCorpus,
     DocTimeRel,
     Entity,
     Relation,
+    SingleAnnotatorCorpus,
 )
-from lseval.correctness_matrix import CorrectnessMatrix, score_totals, Correctness
-from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
-from itertools import combinations
-from functools import reduce
+from lseval.utils import organize_corpus_annotations_by_annotator
 from tabulate import tabulate
-from operator import itemgetter
+
 from .annotator import get_id_to_annotator_mappping
+from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
+from .utils import (
+    merge_correctness_totals,
+    score_file,
+    update_corpus_scores,
+    update_correctness_matrix,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +346,7 @@ def score_corpus_all_annnotators(
     per_document: bool,
     output_dir: str,
 ) -> None:
-    with open(corpus_json, mode="rt") as f:
+    with open(corpus_json) as f:
         raw_json_corpus = json.load(f)
     id_to_unique_annotator = get_id_to_annotator_mappping(
         annotator_ids_tsv, annotator_ids_to_ignore

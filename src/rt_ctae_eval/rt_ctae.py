@@ -1,13 +1,11 @@
-from collections.abc import Mapping, Collection
-from dataclasses import dataclass, field
-
-
-from enum import Enum
-from lseval.correctness_matrix import CorrectnessMatrix, Correctness
-from typing import Any
 import logging
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
-from lseval.datatypes import Entity, Relation, DocTimeRel
+from lseval.correctness_matrix import Correctness, CorrectnessMatrix
+from lseval.datatypes import DocTimeRel, Entity, Relation
 
 logger = logging.getLogger(__name__)
 

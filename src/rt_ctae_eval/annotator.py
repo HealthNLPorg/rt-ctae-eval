@@ -1,5 +1,6 @@
+from collections.abc import Container, Mapping
+
 import polars as pl
-from collections.abc import Mapping, Container
 
 
 def get_annotator_to_file_ids_mappping(
