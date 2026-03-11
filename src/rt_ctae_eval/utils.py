@@ -353,7 +353,7 @@ def score_file(
     )
 
 
-def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
+def old_warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
     initial_total = len(needs_updates) + len(has_updates)
     needs_updates.update(has_updates)
     new_total = len(needs_updates)
@@ -363,22 +363,33 @@ def warned_set_update[T](needs_updates: set[T], has_updates: set[T]) -> set[T]:
     return needs_updates
 
 
-def update_correctness_matrix[T](
+def warned_set_merge[T](needs_updates: Set[T], has_updates: Set[T]) -> Set[T]:
+    initial_total = len(needs_updates) + len(has_updates)
+    updated = needs_updates | has_updates
+    new_total = len(updated)
+    difference = initial_total - new_total
+    if difference > 0:
+        raise ValueError(f"Set has {difference} non-unique entries.")
+    return updated
+
+
+def merge_correctness_matrix[T](
     needs_updates: CorrectnessMatrix[T], has_updates: CorrectnessMatrix[T]
 ) -> CorrectnessMatrix[T]:
-    needs_updates.true_negatives = warned_set_update(
-        set(needs_updates.true_negatives), set(has_updates.true_negatives)
+    return CorrectnessMatrix(
+        true_negatives=warned_set_merge(
+            needs_updates.true_negatives, has_updates.true_negatives
+        ),
+        true_positives=warned_set_merge(
+            needs_updates.true_positives, has_updates.true_positives
+        ),
+        false_negatives=warned_set_merge(
+            needs_updates.false_negatives, has_updates.false_negatives
+        ),
+        false_positives=warned_set_merge(
+            needs_updates.false_positives, has_updates.false_positives
+        ),
     )
-    needs_updates.true_positives = warned_set_update(
-        set(needs_updates.true_positives), set(has_updates.true_positives)
-    )
-    needs_updates.false_negatives = warned_set_update(
-        set(needs_updates.false_negatives), set(has_updates.false_negatives)
-    )
-    needs_updates.false_positives = warned_set_update(
-        set(needs_updates.false_positives), set(has_updates.false_positives)
-    )
-    return needs_updates
 
 
 def update_category_correctness_matrices[S, T](
@@ -387,7 +398,7 @@ def update_category_correctness_matrices[S, T](
 ) -> Mapping[S, CorrectnessMatrix[T]]:
     updated_mapping = {}
     for category in needs_updates.keys() | has_updates.keys():
-        updated_mapping[category] = update_correctness_matrix(
+        updated_mapping[category] = merge_correctness_matrix(
             needs_updates.get(category, CorrectnessMatrix()),
             has_updates.get(category, CorrectnessMatrix()),
         )
@@ -421,29 +432,28 @@ def update_category_to_correctness_totals[S, T](
     return updated_mapping
 
 
-def update_corpus_scores(
+def merge_corpus_scores(
     corpus_scores: AnnotatedCorpusScores, file_scores: AnnotatedFileScores
 ) -> AnnotatedCorpusScores:
-    corpus_scores.rt_entity_correctness_matrix = update_correctness_matrix(
-        corpus_scores.rt_entity_correctness_matrix,
-        file_scores.rt_entity_correctness_matrix,
+    return AnnotatedCorpusScores(
+        rt_entity_correctness_matrix=merge_correctness_matrix(
+            corpus_scores.rt_entity_correctness_matrix,
+            file_scores.rt_entity_correctness_matrix,
+        ),
+        adverse_event_entity_correctness_matrix=merge_correctness_matrix(
+            corpus_scores.adverse_event_entity_correctness_matrix,
+            file_scores.adverse_event_entity_correctness_matrix,
+        ),
+        causal_relation_correctness_matrix=merge_correctness_matrix(
+            corpus_scores.causal_relation_correctness_matrix,
+            file_scores.causal_relation_correctness_matrix,
+        ),
+        dtr_correctness_matrices=update_category_correctness_matrices(
+            corpus_scores.dtr_correctness_matrices,
+            file_scores.dtr_correctness_matrices,
+        ),
+        cui_correctness_totals=update_category_to_correctness_totals(
+            corpus_scores.cui_correctness_totals,
+            file_scores.cui_correctness_totals,
+        ),
     )
-    corpus_scores.adverse_event_entity_correctness_matrix = update_correctness_matrix(
-        corpus_scores.adverse_event_entity_correctness_matrix,
-        file_scores.adverse_event_entity_correctness_matrix,
-    )
-    corpus_scores.causal_relation_correctness_matrix = update_correctness_matrix(
-        corpus_scores.causal_relation_correctness_matrix,
-        file_scores.causal_relation_correctness_matrix,
-    )
-
-    corpus_scores.dtr_correctness_matrices = update_category_correctness_matrices(
-        corpus_scores.dtr_correctness_matrices,
-        file_scores.dtr_correctness_matrices,
-    )
-
-    corpus_scores.cui_correctness_totals = update_category_to_correctness_totals(
-        corpus_scores.cui_correctness_totals,
-        file_scores.cui_correctness_totals,
-    )
-    return corpus_scores

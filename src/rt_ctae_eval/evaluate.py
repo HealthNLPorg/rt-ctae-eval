@@ -24,10 +24,10 @@ from tabulate import tabulate
 from .annotator import get_id_to_annotator_mappping
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from .utils import (
+    merge_correctness_matrix,
     merge_correctness_totals,
     score_file,
-    update_corpus_scores,
-    update_correctness_matrix,
+    merge_corpus_scores,
 )
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ def score_corpus(
             )
             continue
         reference_file_text = getattr(reference_file, "file_text", None)
-        prediction_file_text = getattr(reference_file, "file_text", None)
+        prediction_file_text = getattr(prediction_file, "file_text", None)
         assert (
             reference_file_text is not None
             and reference_file_text == prediction_file_text
@@ -201,7 +201,7 @@ def score_corpus(
         )
         if adjudicate and not (filter_agreements and adjudication_file is None):
             adjudication_instances.append(adjudication_file)
-        annotated_corpus_scores = update_corpus_scores(
+        annotated_corpus_scores = merge_corpus_scores(
             annotated_corpus_scores, annotated_file_scores
         )
         if per_document:
@@ -283,7 +283,7 @@ def print_metrics(
     annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
 ) -> None:
     cumulative_dtr_matrix = reduce(
-        update_correctness_matrix,
+        merge_correctness_matrix,
         annotated_collection_scores.dtr_correctness_matrices.values(),
     )
     cumulative_cui_totals = reduce(
