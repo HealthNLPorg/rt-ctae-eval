@@ -153,9 +153,13 @@ def score_corpus(
             None,
         )
         if reference_file is None or prediction_file is None:
-            logger.error(f"Missing annotations for {file_id}")
+            logger.error("Missing annotations for %d", file_id)
             logger.error(
-                f"Reference/{reference_annotator} file {'present' if reference_file is not None else 'absent'}, Prediction/{prediction_annotator}/file {'present' if prediction_file is not None else 'absent'}"
+                "Reference/%s file %s, Prediction/%s/file %s",
+                reference_annotator,
+                "present" if reference_file is not None else "absent",
+                prediction_annotator,
+                "present" if prediction_file is not None else "absent",
             )
             continue
         reference_file_text = getattr(reference_file, "file_text", None)
@@ -392,7 +396,9 @@ def score_corpus_annotator_pair(
     prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
     reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
     logger.info(
-        f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
+        "Prediction annotator %s reference annotator %s",
+        prediction_annotator,
+        reference_annotator,
     )
     score_corpus(
         prediction_annotator=prediction_annotator,
@@ -408,7 +414,9 @@ def score_corpus_annotator_pair(
     )
     if both_ways:
         logger.info(
-            f"Prediction annotator {reference_annotator} reference annotator {prediction_annotator}"
+            "Prediction annotator %s reference annotator %s",
+            reference_annotator,
+            prediction_annotator,
         )
         score_corpus(
             prediction_annotator=reference_annotator,
