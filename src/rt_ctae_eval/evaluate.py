@@ -360,8 +360,8 @@ def score_corpus_all_annnotators(
         file_exclusion_ids = exclusion_ids(exclude_ids)
     else:
         file_exclusion_ids = []
-    for prediction_annotator, reference_annotator in combinations(
-        annotator_to_single_annotator_corpus.keys(), r=2
+    for prediction_annotator, reference_annotator in sorted(
+        combinations(annotator_to_single_annotator_corpus.keys(), r=2)
     ):
         score_corpus_annotator_pair(
             prediction_annotator=prediction_annotator,
