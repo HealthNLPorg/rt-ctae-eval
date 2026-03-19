@@ -24,10 +24,10 @@ from tabulate import tabulate
 from .annotator import get_id_to_annotator_mappping
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from .utils import (
+    merge_corpus_scores,
     merge_correctness_matrix,
     merge_correctness_totals,
     score_file,
-    merge_corpus_scores,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,10 +164,16 @@ def score_corpus(
             continue
         reference_file_text = getattr(reference_file, "file_text", None)
         prediction_file_text = getattr(prediction_file, "file_text", None)
-        assert (
-            reference_file_text is not None
-            and reference_file_text == prediction_file_text
-        )
+        if reference_file_text is None or prediction_file_text is None:
+            raise ValueError(
+                "One of the file texts for reference or prediction is missing for file ID: %d",
+                file_id,
+            )
+        if reference_file_text != prediction_file_text:
+            raise ValueError(
+                "Reference and prediction file texts do not match for file ID: %d",
+                file_id,
+            )
         annotated_file_scores = score_file(
             file_id=file_id,
             prediction_file=prediction_file,
@@ -207,6 +213,7 @@ def score_corpus(
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
+            print_dtr_by_category(annotated_file_scores)
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)

@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 import operator
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Set
+from collections.abc import Collection, Iterable, Mapping, Set
 from functools import partial
 from itertools import chain
-from typing import Mapping, cast
+from typing import cast
 
 from lseval.correctness_matrix import Correctness, CorrectnessMatrix
 from lseval.datatypes import AnnotatedFile, DocTimeRel, Entity, Relation, overlap_match
