@@ -72,14 +72,11 @@ def to_adverse_event_entity(entity: Entity, file_id: int) -> AdverseEventEntity:
 def parse_dtr_entities(
     annotated_file: AnnotatedFile,
 ) -> Mapping[DocTimeRel, Collection[Entity]]:
-    updated_mapping = {}
+    dtr_to_entity = defaultdict(set)
     for entity in annotated_file.entities:
-        dtr = entity.dtr
-        if dtr not in updated_mapping.keys():
-            updated_mapping[dtr] = set()
-        else:
-            updated_mapping[dtr].add(entity)
-    return updated_mapping
+        dtr = getattr(entity, "dtr", None)
+        dtr_to_entity[dtr].add(entity)
+    return dtr_to_entity
 
 
 def build_category_correctness_matrices[T](
@@ -102,13 +99,10 @@ def build_category_correctness_matrices[T](
 def parse_cui_entities(
     annotated_file: AnnotatedFile,
 ) -> Mapping[str, Collection[Entity]]:
-    cui_to_entity = {}
-    for entity in annotated_file.entities:
-        for cui in entity.cuis:
-            if cui not in cui_to_entity.keys():
-                cui_to_entity[cui] = set()
-            else:
-                cui_to_entity[cui].add(entity)
+    cui_to_entity = defaultdict(set)
+    for entity in getattr(annotated_file, "entities", []):
+        for cui in getattr(entity, "cuis", []):
+            cui_to_entity[cui].add(entity)
     return cui_to_entity
 
 
