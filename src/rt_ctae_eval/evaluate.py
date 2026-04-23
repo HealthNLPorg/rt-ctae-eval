@@ -24,10 +24,10 @@ from tabulate import tabulate
 from .annotator import get_id_to_annotator_mappping
 from .rt_ctae import AnnotatedCorpusScores, AnnotatedFileScores
 from .utils import (
+    merge_corpus_scores,
+    merge_correctness_matrix,
     merge_correctness_totals,
     score_file,
-    update_corpus_scores,
-    update_correctness_matrix,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,17 +153,27 @@ def score_corpus(
             None,
         )
         if reference_file is None or prediction_file is None:
-            logger.error(f"Missing annotations for {file_id}")
+            logger.error("Missing annotations for %d", file_id)
             logger.error(
-                f"Reference/{reference_annotator} file {'present' if reference_file is not None else 'absent'}, Prediction/{prediction_annotator}/file {'present' if prediction_file is not None else 'absent'}"
+                "Reference/%s file %s, Prediction/%s/file %s",
+                reference_annotator,
+                "present" if reference_file is not None else "absent",
+                prediction_annotator,
+                "present" if prediction_file is not None else "absent",
             )
             continue
         reference_file_text = getattr(reference_file, "file_text", None)
-        prediction_file_text = getattr(reference_file, "file_text", None)
-        assert (
-            reference_file_text is not None
-            and reference_file_text == prediction_file_text
-        )
+        prediction_file_text = getattr(prediction_file, "file_text", None)
+        if reference_file_text is None or prediction_file_text is None:
+            raise ValueError(
+                "One of the file texts for reference or prediction is missing for file ID: %d",
+                file_id,
+            )
+        if reference_file_text != prediction_file_text:
+            raise ValueError(
+                "Reference and prediction file texts do not match for file ID: %d",
+                file_id,
+            )
         annotated_file_scores = score_file(
             file_id=file_id,
             prediction_file=prediction_file,
@@ -197,12 +207,13 @@ def score_corpus(
         )
         if adjudicate and not (filter_agreements and adjudication_file is None):
             adjudication_instances.append(adjudication_file)
-        annotated_corpus_scores = update_corpus_scores(
+        annotated_corpus_scores = merge_corpus_scores(
             annotated_corpus_scores, annotated_file_scores
         )
         if per_document:
             print(f"File {file_id} scores:")
             print_metrics(annotated_file_scores)
+            print_dtr_by_category(annotated_file_scores)
 
     print("Corpus scores:")
     print_metrics(annotated_corpus_scores)
@@ -279,7 +290,7 @@ def print_metrics(
     annotated_collection_scores: AnnotatedFileScores | AnnotatedCorpusScores,
 ) -> None:
     cumulative_dtr_matrix = reduce(
-        update_correctness_matrix,
+        merge_correctness_matrix,
         annotated_collection_scores.dtr_correctness_matrices.values(),
     )
     cumulative_cui_totals = reduce(
@@ -392,7 +403,9 @@ def score_corpus_annotator_pair(
     prediction_corpus = annotator_to_single_annotator_corpus[prediction_annotator]
     reference_corpus = annotator_to_single_annotator_corpus[reference_annotator]
     logger.info(
-        f"Prediction annotator {prediction_annotator} reference annotator {reference_annotator}"
+        "Prediction annotator %s reference annotator %s",
+        prediction_annotator,
+        reference_annotator,
     )
     score_corpus(
         prediction_annotator=prediction_annotator,
@@ -408,7 +421,9 @@ def score_corpus_annotator_pair(
     )
     if both_ways:
         logger.info(
-            f"Prediction annotator {reference_annotator} reference annotator {prediction_annotator}"
+            "Prediction annotator %s reference annotator %s",
+            reference_annotator,
+            prediction_annotator,
         )
         score_corpus(
             prediction_annotator=reference_annotator,

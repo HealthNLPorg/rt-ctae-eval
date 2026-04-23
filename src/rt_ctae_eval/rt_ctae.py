@@ -51,7 +51,12 @@ class EventType(Enum):
 class RTEntity(Entity):
     def __post_init__(self):
         if not cuis_are_radiation_treatment(self.cuis):
-            logger.warning("%s is not a proper RT entity", self.label_studio_id)
+            logger.warning(
+                "%s is not a proper RT entity. Missing RT CUI %s from CUIs: %s",
+                self.label_studio_id,
+                RT_CUI,
+                ", ".join(sorted(getattr(self, "cuis", []))),
+            )
 
 
 @dataclass(eq=True, frozen=True)
@@ -59,7 +64,9 @@ class AdverseEventEntity(Entity):
     def __post_init__(self):
         if not cuis_are_adverse_event(self.cuis):
             logger.warning(
-                "%s is not a proper adverse event entity", self.label_studio_id
+                "%s is not a proper adverse event entity. RT CUI found in CUIs: %s",
+                self.label_studio_id,
+                ", ".join(sorted(getattr(self, "cuis", []))),
             )
 
 
