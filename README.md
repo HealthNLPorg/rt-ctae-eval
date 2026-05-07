@@ -1,29 +1,14 @@
 # rt-ctae-eval
-## Evaluate
+
+ Evaluation and annotation adjudication tool for the ACS-CTAE Label Studio project, using [lseval](https://github.com/HealthNLPorg/lseval) as a backend.
+
+## Installation
+
+Clone this repository and install via `uv sync`.  For development activate the virtual environment via `source .venv/bin/activate`.  To run evaluation on an exported Label Studio project with adjudication output and correcting overlapping spans as correct:
 ```
-uv run python -m rt_ctae_eval.evaluate \
-    --corpus_json ~/Downloads/latest_annotations_12_16_2025.json \
-    --annotator_ids_tsv annotator_ids.tsv \
+uv run -m rt_ctae_eval.evaluate \
+    --corpus_json ...json \
     --overlap \
-    --annotator_ids_to_ignore 1 \
-    --per_document
-```
-## Adjudicate (enough code re-used where we can probably collapse things down)
-```
-uv run python -m rt_ctae_eval.adjudicate \
-    --corpus_json ~/Downloads/latest_annotations_12_16_2025.json \
-    --annotator_ids_tsv annotator_ids.tsv \
-    --overlap \
-    --annotator_ids_to_ignore 1 \
-    --output_dir ./adjudication_output
-```
-## New Merged Evaluation and Adjudication Mixture
-```
-uv run python -m rt_ctae_eval.evaluate \
-    --corpus_json ~/Downloads/43_annotated.json \
-    --annotator_ids_tsv annotator_ids.tsv \
-    --overlap \
-    --annotator_ids_to_ignore 1 \
     --output_dir adjudication_output \
     --filter_agreements \
     --adjudicate
