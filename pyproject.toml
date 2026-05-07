@@ -30,7 +30,7 @@ select = [
     "I",   # isort
     "UP",  # pyupgrade
     "G",   # logging
-    "FA",  # future annotations
+    #"FA",  # future annotations
     "PIE", # misc
 ]
 
